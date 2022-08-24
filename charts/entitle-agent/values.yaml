@@ -28,7 +28,7 @@ datadog:
   datadog:
     # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
-    tags: [ ]
+    tags: []
     #   - "<KEY_1>:<VALUE_1>"
     #   - "<KEY_2>:<VALUE_2>"
 
@@ -54,16 +54,13 @@ datadog:
 
     ## @param logs - object - required
     ## Enable logs agent and provide custom configs
-    #
     logs:
       ## @param enabled - boolean - optional - default: false
       ## Enables this to activate Datadog Agent log collection.
-      #
       enabled: true
 
       ## @param containerCollectAll - boolean - optional - default: false
       ## Enable this to allow log collection for all containers.
-      #
       containerCollectAll: true
 
     # datadog.containerExclude -- Exclude containers from the Agent
