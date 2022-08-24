@@ -1,0 +1,86 @@
+# Default values for entitle-agent-chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+dockerConfigJson: ""
+serviceAccount:
+  iamrole: ""
+entitleAgent:
+  serviceAccountName: "entitle-agent-sa"
+  entitleAgentContainer:
+    image:
+      repository: ghcr.io/anycred/ichilov
+      tag: latest
+  replicas: 2
+  logs: json
+  env:
+    KMS_TYPE: ""
+
+datadog:
+  ## This is the Datadog Cluster Agent implementation that handles cluster-wide
+  ## metrics more cleanly, separates concerns for better rbac, and implements
+  ## the external metrics API so you can autoscale HPAs based on datadog metrics
+  ## ref: https://docs.datadoghq.com/agent/kubernetes/cluster/
+  clusterAgent:
+    # clusterAgent.enabled -- Set this to false to disable Datadog Cluster Agent
+    enabled: true
+
+  datadog:
+    # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    tags: []
+    #   - "<KEY_1>:<VALUE_1>"
+    #   - "<KEY_2>:<VALUE_2>"
+
+    # datadog.kubeStateMetricsEnabled -- If true, deploys the kube-state-metrics deployment
+    ## ref: https://github.com/kubernetes/kube-state-metrics/tree/kube-state-metrics-helm-chart-2.13.2/charts/kube-state-metrics
+    kubeStateMetricsEnabled: false  # to avoid deploying kube-state-metrics chart
+
+    kubeStateMetricsCore:
+      # datadog.kubeStateMetricsCore.enabled -- Enable the kubernetes_state_core check in the Cluster Agent (Requires Cluster Agent 1.12.0+)
+      ## ref: https://docs.datadoghq.com/integrations/kubernetes_state_core
+      enabled: true  # to enable the new `kubernetes_state_core` check
+
+    # datadog.collectEvents -- Enables this to start event collection from the kubernetes API
+    ## ref: https://docs.datadoghq.com/agent/kubernetes/#event-collection
+    collectEvents: true
+
+    ## Enable apm agent and provide custom configs
+    apm:
+      # datadog.apm.enabled -- Enable this to enable APM and tracing, on port 8126
+      # DEPRECATED. Use datadog.apm.portEnabled instead
+      ## ref: https://github.com/DataDog/docker-dd-agent#tracing-from-the-host
+      enabled: true
+
+    ## @param logs - object - required
+    ## Enable logs agent and provide custom configs
+    logs:
+      ## @param enabled - boolean - optional - default: false
+      ## Enables this to activate Datadog Agent log collection.
+      enabled: true
+
+      ## @param containerCollectAll - boolean - optional - default: false
+      ## Enable this to allow log collection for all containers.
+      containerCollectAll: true
+
+    # datadog.containerExclude -- Exclude containers from the Agent
+    # Autodiscovery, as a space-sepatered list
+    ## ref: https://docs.datadoghq.com/agent/guide/autodiscovery-management/?tab=containerizedagent#exclude-containers
+    containerExclude: "image:datadog/agent"
+
+    ## Enable process agent and provide custom configs
+    processAgent:
+      # datadog.processAgent.enabled -- Set this to true to enable live process monitoring agent
+      ## Note: /etc/passwd is automatically mounted to allow username resolution.
+      ## ref: https://docs.datadoghq.com/graphing/infrastructure/process/#kubernetes-daemonset
+      enabled: true
+
+      # datadog.processAgent.processCollection -- Set this to true to enable process collection in process monitoring agent
+      ## Requires processAgent.enabled to be set to true to have any effect
+      processCollection: true
+
+    # kubelet configuration
+    kubelet:
+      # datadog.kubelet.tlsVerify -- Toggle kubelet TLS verification
+      # @default -- true
+      tlsVerify: true

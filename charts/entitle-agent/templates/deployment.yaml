@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "entitle-agent.fullname" . }}
+  labels:
+    app: entitle-agent
+    tags.datadoghq.com/env: production
+    tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-onprem
+  {{- include "entitle-agent.labels" . | nindent 4 }}
+  annotations:
+    ad.datadoghq.com/entitle-agent-container.logs: >-
+      [{"type":"file", "python": "entitle-agent", "service": "entitle-agent-onprem","path": "/var/log/entitle-agent-log.json"}, {"source": "python", "service": "entitle-agent-onprem"}]
+spec:
+  replicas: {{ .Values.entitleAgent.replicas }}
+  selector:
+    matchLabels:
+      app: entitle-agent
+    {{- include "entitle-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: entitle-agent
+        environment: prod
+        tags.datadoghq.com/env: production
+        tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-onprem
+      {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - env:
+            - name: APP_ENV
+              value: PRODUCTION
+            - name: ENTITLE_JSON_CONFIGURATION
+              valueFrom:
+                secretKeyRef:
+                  name: entitle-agent-secret
+                  key: entitle-agent-secret
+                  optional: false
+            - name: KMS_TYPE
+              value: {{ .Values.entitleAgent.env.KMS_TYPE }}
+          image: {{ .Values.entitleAgent.entitleAgentContainer.image.repository }}:{{ .Values.entitleAgent.entitleAgentContainer.image.tag
+          | default .Chart.AppVersion }}
+          imagePullPolicy: Always
+          name: entitle-agent
+          resources: { }
+      imagePullSecrets:
+        - name: {{ include "entitle-agent.fullname" . }}-docker-login
+      serviceAccountName: {{ .Values.entitleAgent.serviceAccountName }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.entitleAgent.serviceAccountName }}
+  labels:
+  {{- include "entitle-agent.labels" . | nindent 4 }}
