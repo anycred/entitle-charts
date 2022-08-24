@@ -28,7 +28,7 @@ datadog:
   datadog:
     # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
-    tags: [ ]
+    tags: []
     #   - "<KEY_1>:<VALUE_1>"
     #   - "<KEY_2>:<VALUE_2>"
 
