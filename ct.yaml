@@ -6,4 +6,5 @@ chart-dirs:
   - charts
 chart-repos:
   - bitnami=https://charts.bitnami.com/bitnami
+  - datadog=https://helm.datadoghq.com
 helm-extra-args: --timeout 600s

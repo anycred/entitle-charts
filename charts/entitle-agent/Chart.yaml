@@ -6,7 +6,7 @@ icon: https://app.entitle.io/favicon.ico
 dependencies:
   - name: datadog
     version: "2.30.16"
-    repository: "https://helm.datadoghq.com"
+    repository: https://helm.datadoghq.com
 
 # A chart can be either an 'application' or a 'library' chart.
 #
