@@ -1,7 +1,6 @@
 # See https://github.com/helm/chart-testing#configuration
 remote: origin
 target-branch: master
-validate_maintainers: false
 chart-dirs:
   - charts
 chart-repos:

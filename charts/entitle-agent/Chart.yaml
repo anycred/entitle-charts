@@ -2,6 +2,8 @@ apiVersion: v2
 name: entitle-agent
 description: A Entitle agent Helm chart for Kubernetes
 icon: https://app.entitle.io/favicon.ico
+maintainers:
+  - name: entitle.io
 
 dependencies:
   - name: datadog
