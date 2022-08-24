@@ -34,12 +34,12 @@ datadog:
 
     # datadog.kubeStateMetricsEnabled -- If true, deploys the kube-state-metrics deployment
     ## ref: https://github.com/kubernetes/kube-state-metrics/tree/kube-state-metrics-helm-chart-2.13.2/charts/kube-state-metrics
-    kubeStateMetricsEnabled: false # to avoid deploying kube-state-metrics chart
+    kubeStateMetricsEnabled: false  # to avoid deploying kube-state-metrics chart
 
     kubeStateMetricsCore:
       # datadog.kubeStateMetricsCore.enabled -- Enable the kubernetes_state_core check in the Cluster Agent (Requires Cluster Agent 1.12.0+)
       ## ref: https://docs.datadoghq.com/integrations/kubernetes_state_core
-      enabled: true # to enable the new `kubernetes_state_core` check
+      enabled: true  # to enable the new `kubernetes_state_core` check
 
     # datadog.collectEvents -- Enables this to start event collection from the kubernetes API
     ## ref: https://docs.datadoghq.com/agent/kubernetes/#event-collection
