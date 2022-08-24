@@ -26,24 +26,24 @@ spec:
       {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-      - env:
-        - name: APP_ENV
-          value: PRODUCTION
-        - name: ENTITLE_JSON_CONFIGURATION
-          valueFrom:
-            secretKeyRef:
-              name: entitle-agent-secret
-              key: entitle-agent-secret
-              optional: false
-        - name: KMS_TYPE
-          value: {{ .Values.entitleAgent.env.KMS_TYPE }}
-        image: {{ .Values.entitleAgent.entitleAgentContainer.image.repository }}:{{ .Values.entitleAgent.entitleAgentContainer.image.tag
+        - env:
+            - name: APP_ENV
+              value: PRODUCTION
+            - name: ENTITLE_JSON_CONFIGURATION
+              valueFrom:
+                secretKeyRef:
+                  name: entitle-agent-secret
+                  key: entitle-agent-secret
+                  optional: false
+            - name: KMS_TYPE
+              value: {{ .Values.entitleAgent.env.KMS_TYPE }}
+          image: {{ .Values.entitleAgent.entitleAgentContainer.image.repository }}:{{ .Values.entitleAgent.entitleAgentContainer.image.tag
           | default .Chart.AppVersion }}
-        imagePullPolicy: Always
-        name: entitle-agent
-        resources: {}
+          imagePullPolicy: Always
+          name: entitle-agent
+          resources: { }
       imagePullSecrets:
-      - name: {{ include "entitle-agent.fullname" . }}-docker-login
+        - name: {{ include "entitle-agent.fullname" . }}-docker-login
       serviceAccountName: {{ .Values.entitleAgent.serviceAccountName }}
 ---
 apiVersion: v1

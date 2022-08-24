@@ -9,6 +9,6 @@ roleRef:
   kind: Role
   name: '{{ include "entitle-agent.fullname" . }}-deployment'
 subjects:
-- kind: ServiceAccount
-  name: '{{ .Values.entitleAgent.serviceAccountName }}'
-  namespace: '{{ .Release.Namespace }}'
+  - kind: ServiceAccount
+    name: '{{ .Values.entitleAgent.serviceAccountName }}'
+    namespace: '{{ .Release.Namespace }}'
