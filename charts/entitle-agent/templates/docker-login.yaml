@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "entitle-agent.fullname" . }}-docker-login
+  labels:
+  {{- include "entitle-agent.labels" . | nindent 4 }}
+data:
+  .dockerconfigjson: {{ required "dockerConfigJson is required" .Values.dockerConfigJson | quote }}
+type: kubernetes.io/dockerconfigjson
