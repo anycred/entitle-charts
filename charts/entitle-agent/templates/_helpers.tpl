@@ -60,3 +60,13 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+
+{{/*
+Service Accounts annotations
+*/}}
+{{- define "ichilov.sa.annotations" -}}
+{{- if .Values.serviceAccount.iamrole }}
+   eks.amazonaws.com/role-arn: {{ .Values.serviceAccount.iamrole }}
+{{- end }}
+{{- end }}

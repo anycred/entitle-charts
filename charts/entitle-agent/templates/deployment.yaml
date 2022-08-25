@@ -52,3 +52,5 @@ metadata:
   name: {{ .Values.entitleAgent.serviceAccountName }}
   labels:
   {{- include "entitle-agent.labels" . | nindent 4 }}
+  annotations:
+        {{- include "ichilov.sa.annotations" . | nindent 4 }}
