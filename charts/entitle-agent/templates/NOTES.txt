@@ -1,0 +1,5 @@
+Congratulations, you have installed Entitle's on-prem agent!
+You can see your running agents using
+    kubectl get pods
+
+Feel free to contact us regarding any issues!

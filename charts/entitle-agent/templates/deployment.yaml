@@ -3,54 +3,73 @@ kind: Deployment
 metadata:
   name: {{ include "entitle-agent.fullname" . }}
   labels:
-    app: entitle-agent
-    tags.datadoghq.com/env: production
-    tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-onprem
-  {{- include "entitle-agent.labels" . | nindent 4 }}
-  annotations:
-    ad.datadoghq.com/entitle-agent-container.logs: >-
-      [{"type":"file", "python": "entitle-agent", "service": "entitle-agent-onprem","path": "/var/log/entitle-agent-log.json"}, {"source": "python", "service": "entitle-agent-onprem"}]
+    app: {{ include "entitle-agent.fullname" . }}
+    environment: {{ .Values.global.environment }}
+    tags.datadoghq.com/env: {{ .Values.global.environment }}
+    tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
+    tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" .}}
+    {{- include "entitle-agent.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.entitleAgent.replicas }}
+  replicas: {{ .Values.agent.replicas }}
   selector:
     matchLabels:
-      app: entitle-agent
-    {{- include "entitle-agent.selectorLabels" . | nindent 6 }}
+      app: {{ include "entitle-agent.fullname" . }}
+      {{- include "entitle-agent.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/docker-login: {{ include (print $.Template.BasePath "/docker-login.yaml") . | sha256sum }}
+        ad.datadoghq.com/{{ include "entitle-agent.fullname" . }}.logs: '[{"source": "{{ include "entitle-agent.fullname" . }}"}]'
+      {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
-        app: entitle-agent
-        environment: prod
-        tags.datadoghq.com/env: production
-        tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-onprem
-      {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+        app: {{ include "entitle-agent.fullname" . }}
+        environment: {{ .Values.global.environment }}
+        tags.datadoghq.com/env: {{ .Values.global.environment }}
+        tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
+        tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" .}}
+        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
     spec:
       containers:
-        - env:
-            - name: APP_ENV
-              value: PRODUCTION
-            - name: ENTITLE_JSON_CONFIGURATION
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "entitle-agent.fullname" . }}-secret
-                  key: ENTITLE_JSON_CONFIGURATION
-                  optional: false
-            - name: KMS_TYPE
-              value: {{ .Values.entitleAgent.env.KMS_TYPE }}
-          image: {{ .Values.entitleAgent.entitleAgentContainer.image.repository }}:{{ .Values.entitleAgent.entitleAgentContainer.image.tag
-          | default .Chart.AppVersion }}
-          imagePullPolicy: Always
-          name: entitle-agent
-          resources: { }
+      - env:
+        {{- if eq .Values.agent.mode "websocket" }}
+        - name: TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "entitle-agent.fullname" . }}-secret
+              key: TOKEN
+        - name: KMS_TYPE
+          value: {{ include "entitle-agent.kmsType" . }}
+        {{- else }}
+        - name: ENTITLE_WEBSOCKET_ENABLED
+          value: "false"
+        - name: ENTITLE_KMS_TYPE
+          value: {{ include "entitle-agent.kmsType" . }}
+        {{- if .Values.agent.kafka.bootstrapServers }}
+        - name: ENTITLE_KAFKA_BOOTSTRAP_SERVERS
+          value: {{ .Values.agent.kafka.bootstrapServers }}
+        {{- end }}
+        - name: ENTITLE_JSON_CONFIGURATION
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "entitle-agent.fullname" . }}-secret
+              key: ENTITLE_JSON_CONFIGURATION
+              optional: false
+        {{- end }}
+        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: Always
+        name: {{ include "entitle-agent.fullname" . }}
+        resources:
+          {{- toYaml .Values.agent.resources | nindent 10 }}
+        args:
+          - /bin/sh
+          - -c
+          - touch /tmp/healthy;
       imagePullSecrets:
         - name: {{ include "entitle-agent.fullname" . }}-docker-login
-      serviceAccountName: {{ .Values.entitleAgent.serviceAccountName }}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ .Values.entitleAgent.serviceAccountName }}
-  labels:
-  {{- include "entitle-agent.labels" . | nindent 4 }}
-  annotations:
-        {{- include "ichilov.sa.annotations" . | nindent 4 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "entitle-agent.serviceAccountName" .}}

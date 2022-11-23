@@ -5,5 +5,5 @@ metadata:
   labels:
   {{- include "entitle-agent.labels" . | nindent 4 }}
 data:
-  .dockerconfigjson: {{ required "dockerConfigJson is required" .Values.dockerConfigJson | quote }}
+  .dockerconfigjson: {{ required "imageCredentials are required" .Values.imageCredentials | quote }}
 type: kubernetes.io/dockerconfigjson

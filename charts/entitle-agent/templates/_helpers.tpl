@@ -2,7 +2,7 @@
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default "entitle-agent" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -11,23 +11,14 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 If release name contains chart name it will be used as a full name.
 */}}
 {{- define "entitle-agent.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+{{- printf "%s" "entitle-agent" | trunc 63}}
 {{- end }}
 
 {{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "entitle-agent.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" "entitle-agent" .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -51,22 +42,58 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
+Service account annotations
 */}}
 {{- define "entitle-agent.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "entitle-agent.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- default "entitle-agent-sa" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Service Accounts annotations
+*/}}
+{{- define "entitle-agent.serviceAccountAnnotations" -}}
+{{- if .Values.platform.aws.iamRole -}}
+eks.amazonaws.com/role-arn: {{ .Values.platform.aws.iamRole }}
+{{- else -}}
+iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" .Values.platform.gke.serviceAccount .Values.platform.gke.projectId | quote}}
 {{- end }}
 {{- end }}
 
 
 {{/*
-Service Accounts annotations
+KMS type
 */}}
-{{- define "ichilov.sa.annotations" -}}
-{{- if .Values.serviceAccount.iamrole }}
-   eks.amazonaws.com/role-arn: {{ .Values.serviceAccount.iamrole }}
+{{- define "entitle-agent.kmsType" -}}
+{{- if .Values.platform.aws.iamRole }}
+{{- default "aws_secret_manager"}}
+{{- else  }}
+{{- default "gcp_secret_manager"}}
 {{- end }}
 {{- end }}
+
+{{/*
+Image Tag
+*/}}
+{{- define "entitle-agent.imageTag" -}}
+{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{/*
+{{
+/* Fullname with image tag
+*/}}
+{{- define "entitle-agent.fullnameWithImageTag" -}}
+{{- printf "%s_%s" (include "entitle-agent.fullname" .) (include "entitle-agent.imageTag" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+
+{{/*
+Node selector
+*/}}
+{{- define "entitle-agent.nodeSelector" -}}
+{{- if .Values.nodeSelector }}
+{{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
+{{- end }}
+{{/*
+*/}}

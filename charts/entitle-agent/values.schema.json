@@ -1,0 +1,213 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "type": "object",
+  "required": [
+    "imageCredentials",
+    "platform",
+    "agent",
+    "datadog"
+  ],
+  "properties": {
+    "podAnnotations": {
+      "type": "object"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "platform": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "default": "aws",
+          "enum": [
+            "gcp",
+            "aws"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "aws"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "aws": {
+            "type": "object",
+            "required": [
+              "iamRole"
+            ],
+            "properties": {
+              "iamRole": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "gke": {
+            "type": "object",
+            "required": [
+              "serviceAccount",
+              "projectId"
+            ],
+            "properties": {
+              "serviceAccount": {
+                "type": "string"
+              },
+              "projectId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "required": [
+        "mode",
+        "image",
+        "replicas",
+        "resources"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "default": "kafka",
+          "enum": [
+            "kafka",
+            "websocket"
+          ]
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resources": {
+          "type": "object",
+          "required": [
+            "requests",
+            "limits"
+          ],
+          "properties": {
+            "requests": {
+              "type": "object",
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "required": [
+                "cpu",
+                "memory"
+              ],
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "default": "ghcr.io/anycred/entitle-agent"
+            },
+            "tag": {
+              "type": "string",
+              "default": "master"
+            }
+          },
+          "required": [
+            "repository",
+            "tag"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "kafka"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kafka": {
+            "type": "object",
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "websocket": {
+            "type": "object",
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "global": {
+    "type": "object",
+    "properties": {
+      "environment": {
+        "type": "string",
+        "default": "onprem"
+      }
+    }
+  },
+  "datadog": {
+    "type": "object",
+    "properties": {
+      "datadog": {
+        "type": "object",
+        "required": [
+          "apiKey"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

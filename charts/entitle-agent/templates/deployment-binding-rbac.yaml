@@ -7,8 +7,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: '{{ include "entitle-agent.fullname" . }}-deployment'
+  name: {{ include "entitle-agent.fullname" . }}-deployment
 subjects:
   - kind: ServiceAccount
-    name: '{{ .Values.entitleAgent.serviceAccountName }}'
-    namespace: '{{ .Release.Namespace }}'
+    name: {{ include "entitle-agent.serviceAccountName" . }}

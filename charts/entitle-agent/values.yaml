@@ -2,36 +2,60 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-nameOverride: "entitle-agent"
-fullnameOverride:
+imageCredentials: #Credentials you've received upon agent installation (Contact us for more info)
 
-dockerConfigJson: ""
+platform:
+  mode: gcp
+  aws:
+    iamRole: # IAM role for agent's service account annotations
+  gke:
+    serviceAccount: "" # GKE service account for agent's service account annotations
+    projectId: "" # GCP project ID for agent's service account annotations
 
-serviceAccount:
-  iamrole: ""
 
-entitleAgent:
-  base64Configuration:
-  serviceAccountName: "entitle-agent-sa"
-  entitleAgentContainer:
-    image:
-      repository: ghcr.io/anycred/ichilov
-      tag: latest
-  replicas: 2
-  logs: json
-  env:
-    KMS_TYPE: ""
 
+
+podAnnotations: {} # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+
+nodeSelector: {} # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+
+
+
+global:
+  environment: "onprem" # Used for metadata of deployment
+
+agent:
+  image:
+    repository: ghcr.io/anycred/entitle-agent # Docker image repository
+    tag: latest # Tag for docker image of agent
+  mode: "kafka" # Take values from: [kafka, websocket]
+  replicas: 1 # Number of pods to run
+  resources:
+    requests:
+      cpu: 500m # CPU request for agent pod
+      memory: 1Gi # Memory request for agent pod
+    limits:
+      cpu: 1000m # CPU limit for agent pod
+      memory: 3Gi # Memory limit for agent pod
+  websocket:
+    token: # Deprecated [backward compatibility] Token you've received upon agent installation (Contact us for more info)
+  kafka:
+    bootstrapServers:  # Kafka public bootstrap servers
+    token: "" # Credentials you've received upon agent installation (Contact us for more info)
+############################################################
 datadog:
   ## This is the Datadog Cluster Agent implementation that handles cluster-wide
   ## metrics more cleanly, separates concerns for better rbac, and implements
   ## the external metrics API so you can autoscale HPAs based on datadog metrics
   ## ref: https://docs.datadoghq.com/agent/kubernetes/cluster/
+  providers:
+    gke:
+      autopilot: false #Whether to enable autopilot or not
   clusterAgent:
     # clusterAgent.enabled -- Set this to false to disable Datadog Cluster Agent
-    enabled: true
-
+    enabled: false
   datadog:
+    apiKey: # Datadog API key
     # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     tags: []
@@ -72,7 +96,8 @@ datadog:
     # datadog.containerExclude -- Exclude containers from the Agent
     # Autodiscovery, as a space-sepatered list
     ## ref: https://docs.datadoghq.com/agent/guide/autodiscovery-management/?tab=containerizedagent#exclude-containers
-    containerExclude: "image:datadog/agent"
+    containerExclude: "kube_namespace:kube-system kube_namespace:prometheus kube_namespace:datadog image:datadog/agent"
+    containerInclude: "kube_namespace:entitle"
 
     ## Enable process agent and provide custom configs
     processAgent:
