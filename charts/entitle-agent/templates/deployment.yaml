@@ -30,9 +30,19 @@ spec:
         tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
         tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" .}}
         {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+        {{- if eq .Values.platform.mode "azure" }}
+        azure.workload.identity/use: "true"
+        {{- end }}
     spec:
       containers:
       - env:
+        {{- if eq .Values.kmsType "hashicorp_vault" }}
+        - name: HASHICORP_VAULT_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "entitle-agent.fullname" . }}-hashicorp-vault-secret
+              key: HASHICORP_VAULT_CONNECTION_STRING
+        {{- end }}
         {{- if eq .Values.agent.mode "websocket" }}
         - name: TOKEN
           valueFrom:
@@ -40,12 +50,12 @@ spec:
               name: {{ include "entitle-agent.fullname" . }}-secret
               key: TOKEN
         - name: KMS_TYPE
-          value: {{ include "entitle-agent.kmsType" . }}
+          value: {{ .Values.kmsType }}
         {{- else }}
         - name: ENTITLE_WEBSOCKET_ENABLED
           value: "false"
         - name: ENTITLE_KMS_TYPE
-          value: {{ include "entitle-agent.kmsType" . }}
+          value: {{ .Values.kmsType }}
         {{- if .Values.agent.kafka.bootstrapServers }}
         - name: ENTITLE_KAFKA_BOOTSTRAP_SERVERS
           value: {{ .Values.agent.kafka.bootstrapServers }}
@@ -57,15 +67,17 @@ spec:
               key: ENTITLE_JSON_CONFIGURATION
               optional: false
         {{- end }}
+        {{- if eq .Values.platform.mode "azure" }}
+        - name: AZURE_KEY_VAULT_NAME
+          value: {{ .Values.platform.azure.keyVaultName }}
+        {{- end }}
         image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
         imagePullPolicy: Always
         name: {{ include "entitle-agent.fullname" . }}
+        {{- with .Values.agent.resources }}
         resources:
-          {{- toYaml .Values.agent.resources | nindent 10 }}
-        args:
-          - /bin/sh
-          - -c
-          - touch /tmp/healthy;
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       imagePullSecrets:
         - name: {{ include "entitle-agent.fullname" . }}-docker-login
       {{- with .Values.nodeSelector }}

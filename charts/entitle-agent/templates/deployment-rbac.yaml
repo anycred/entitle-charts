@@ -30,3 +30,11 @@ rules:
     apiGroups: [ "apps" ]
     resources:
       - replicasets
+  - verbs:
+      - get
+    apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    resourceNames:
+      - {{ include "entitle-agent.serviceAccountName" . }}

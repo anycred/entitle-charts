@@ -5,9 +5,34 @@
     "imageCredentials",
     "platform",
     "agent",
-    "datadog"
+    "datadog",
+    "kmsType"
   ],
   "properties": {
+    "kmsType": {
+      "type": "string",
+      "enum": [
+        "aws_secret_manager",
+        "gcp_secret_manager",
+        "azure_secret_manager",
+        "hashicorp_vault"
+      ]
+    },
+    "externalKmsParams": {
+      "type": "object",
+      "properties": {
+        "hashicorp": {
+          "type": ["object", "null"],
+          "default": null,
+          "properties": {
+            "connectionString": {
+              "type": ["string", "null"],
+              "default": null
+            }
+          }
+        }
+      }
+    },
     "podAnnotations": {
       "type": "object"
     },
@@ -22,59 +47,100 @@
           "default": "aws",
           "enum": [
             "gcp",
-            "aws"
+            "aws",
+            "azure"
           ]
         }
       },
-      "if": {
-        "properties": {
-          "mode": {
-            "const": "aws"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "aws": {
-            "type": "object",
-            "required": [
-              "iamRole"
-            ],
+      "allOf": [
+        {
+          "if": {
             "properties": {
-              "iamRole": {
-                "type": "string"
+              "mode": {
+                "const": "aws"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "aws": {
+                "type": "object",
+                "required": [
+                  "iamRole"
+                ],
+                "properties": {
+                  "iamRole": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "gcp"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "gke": {
+                "type": "object",
+                "required": [
+                  "serviceAccount",
+                  "projectId"
+                ],
+                "properties": {
+                  "serviceAccount": {
+                    "type": "string"
+                  },
+                  "projectId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "azure"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "azure": {
+                "type": "object",
+                "required": [
+                  "clientId",
+                  "keyVaultName"
+                ],
+                "properties": {
+                  "clientId": {
+                    "type": "string"
+                  },
+                  "keyVaultName": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
         }
-      },
-      "else": {
-        "properties": {
-          "gke": {
-            "type": "object",
-            "required": [
-              "serviceAccount",
-              "projectId"
-            ],
-            "properties": {
-              "serviceAccount": {
-                "type": "string"
-              },
-              "projectId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      }
+      ]
     },
     "agent": {
       "type": "object",
       "required": [
         "mode",
         "image",
-        "replicas",
-        "resources"
+        "replicas"
       ],
       "properties": {
         "mode": {
@@ -91,17 +157,9 @@
         },
         "resources": {
           "type": "object",
-          "required": [
-            "requests",
-            "limits"
-          ],
           "properties": {
             "requests": {
               "type": "object",
-              "required": [
-                "cpu",
-                "memory"
-              ],
               "properties": {
                 "cpu": {
                   "type": "string"
@@ -113,10 +171,6 @@
             },
             "limits": {
               "type": "object",
-              "required": [
-                "cpu",
-                "memory"
-              ],
               "properties": {
                 "cpu": {
                   "type": "string"

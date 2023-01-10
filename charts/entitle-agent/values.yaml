@@ -5,13 +5,16 @@
 imageCredentials: #Credentials you've received upon agent installation (Contact us for more info)
 
 platform:
-  mode: gcp
+  mode: aws
   aws:
     iamRole: # IAM role for agent's service account annotations
-  gke:
-    serviceAccount: "" # GKE service account for agent's service account annotations
-    projectId: "" # GCP project ID for agent's service account annotations
-
+  gcp:
+    serviceAccount:  # GKE service account for agent's service account annotations
+    projectId:  # GCP project ID for agent's service account annotations
+  azure:
+    clientId: # Azure AD application client ID to be used with the pod.
+    tenantId: # Azure AD tenant ID to be used with the pod.
+    keyVaultName: # Name of the Azure Key Vault to be used for storing the agent secret.
 
 
 
@@ -19,7 +22,11 @@ podAnnotations: {} # https://kubernetes.io/docs/concepts/overview/working-with-o
 
 nodeSelector: {} # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 
+kmsType:
 
+externalKmsParams:
+  hashicorp:
+    connectionString: # example: "https://<token>@1.2.3.4:8200"
 
 global:
   environment: "onprem" # Used for metadata of deployment
@@ -32,10 +39,10 @@ agent:
   replicas: 3 # Number of pods to run
   resources:
     requests:
-      cpu: 500m # CPU request for agent pod
+      cpu: 1000m # CPU request for agent pod
       memory: 1Gi # Memory request for agent pod
     limits:
-      cpu: 3000m # CPU limit for agent pod
+      cpu: 5000m # CPU limit for agent pod
       memory: 3Gi # Memory limit for agent pod
   websocket:
     token: # Deprecated [backward compatibility] Token you've received upon agent installation (Contact us for more info)

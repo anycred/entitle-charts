@@ -48,26 +48,29 @@ Service account annotations
 {{- default "entitle-agent-sa" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+
+{{/*
+Service account labels
+*/}}
+{{- define "entitle-agent.serviceAccountLabels" -}}
+{{- if eq .Values.platform.mode "azure" -}}
+azure.workload.identity/use: "true"
+{{- end }}
+{{- end }}
+*/}}}}
+
+
 {{/*
 Service Accounts annotations
 */}}
 {{- define "entitle-agent.serviceAccountAnnotations" -}}
-{{- if .Values.platform.aws.iamRole -}}
+{{- if eq .Values.platform.mode "aws" -}}
 eks.amazonaws.com/role-arn: {{ .Values.platform.aws.iamRole }}
-{{- else -}}
+{{- else if eq .Values.platform.mode "gcp" -}}
 iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" .Values.platform.gke.serviceAccount .Values.platform.gke.projectId | quote}}
-{{- end }}
-{{- end }}
-
-
-{{/*
-KMS type
-*/}}
-{{- define "entitle-agent.kmsType" -}}
-{{- if .Values.platform.aws.iamRole }}
-{{- default "aws_secret_manager"}}
-{{- else  }}
-{{- default "gcp_secret_manager"}}
+{{- else -}}
+azure.workload.identity/client-id: {{ .Values.platform.azure.clientId }}
+azure.workload.identity/tenant-id: {{ .Values.platform.azure.tenantId }}
 {{- end }}
 {{- end }}
 
