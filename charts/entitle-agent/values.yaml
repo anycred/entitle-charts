@@ -21,6 +21,10 @@ podAnnotations: {}  # https://kubernetes.io/docs/concepts/overview/working-with-
 
 nodeSelector: {}  # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 
+affinity: {}  # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
+
+tolerations: []  # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+
 kmsType: "MISSING_CUSTOMER_DATA"  # Key Management Service to store internal Entitle secrets (Contact us for more info)
 
 externalKmsParams:
