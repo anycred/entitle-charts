@@ -9,7 +9,7 @@ data:
     instances:
     logs:
       - type: file
-        path: /var/log/entitle-agent/entitle-agent.log
+        path: /var/log/entitle-agent/*.log
         service: entitle-agent-onprem
         source: entitle-agent
         sourcecategory: sourcecode
