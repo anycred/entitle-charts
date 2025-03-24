@@ -101,9 +101,12 @@ spec:
           successThreshold: 1
           timeoutSeconds: 10
       {{- if and ( not .Values.datadog.enabled )  .Values.datadog.sidecarLogs }}
+      # https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+      initContainers:
       - name: datadog-agent
         image: gcr.io/datadoghq/agent:latest
         imagePullPolicy: Always
+        restartPolicy: Always
         env:
           - name: DD_API_KEY
             valueFrom:
