@@ -86,14 +86,6 @@ spec:
           exec:
             command:
               - python
-              - scripts/healthcheck/healthcheck.py
-          initialDelaySeconds: 30
-          periodSeconds: 3600
-          timeoutSeconds: 30
-        readinessProbe:
-          exec:
-            command:
-              - python
               - /src/liveness_check/liveness_check.py
           failureThreshold: 1
           initialDelaySeconds: 20
