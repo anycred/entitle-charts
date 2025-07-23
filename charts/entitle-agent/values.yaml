@@ -37,7 +37,7 @@ global:
 agent:
   token: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
   image:
-    repository: ghcr.io/anycred/entitle-agent  # Docker image repository
+    repository: beyondtrust-eng-docker-prod-local.jfrog.io/beyondtrust/entitle/entitle-agent  # Docker image repository
     tag: latest  # Tag for docker image of agent
 
   replicas: 3  # Number of pods to run
