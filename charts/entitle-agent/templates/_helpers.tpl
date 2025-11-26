@@ -101,3 +101,54 @@ Node selector
 {{- end }}
 {{/*
 */}}
+
+{{/*
+#################################################################
+CUSTOM LOGIC FOR JFROG MIGRATION
+#################################################################
+*/}}
+
+{{/*
+Internal Helper: Try to extract imageCredentials from the Base64 encoded Token.
+Returns the Base64 credential string if found, otherwise empty.
+*/}}
+{{- define "entitle-agent.extractedImageCredentials" -}}
+{{- if .Values.agent.token -}}
+  {{- $decoded := .Values.agent.token | b64dec -}}
+  {{- /* formatting check: ensure it looks like JSON to avoid parsing errors */ -}}
+  {{- if hasPrefix "{" $decoded -}}
+    {{- $json := $decoded | fromJson -}}
+    {{- if hasKey $json "imageCredentials" -}}
+      {{- $json.imageCredentials -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Logic: Determine the Container Registry URL.
+1. If the Token contains "imageCredentials" -> Force JFrog URL.
+2. Else -> Use the value from values.yaml (Default: ghcr.io).
+*/}}
+{{- define "entitle-agent.repository" -}}
+{{- $newCreds := include "entitle-agent.extractedImageCredentials" . -}}
+{{- if $newCreds -}}
+beyondtrust-eng-docker-prod-local.jfrog.io/beyondtrust/entitle/entitle-agent
+{{- else -}}
+{{- .Values.agent.image.repository -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Logic: Determine the Docker Credentials to use.
+1. If the Token contains "imageCredentials" -> Use them.
+2. Else -> Use the value from values.yaml.
+*/}}
+{{- define "entitle-agent.finalImageCredentials" -}}
+{{- $newCreds := include "entitle-agent.extractedImageCredentials" . -}}
+{{- if $newCreds -}}
+  {{- $newCreds -}}
+{{- else -}}
+  {{- .Values.imageCredentials -}}
+{{- end -}}
+{{- end -}}

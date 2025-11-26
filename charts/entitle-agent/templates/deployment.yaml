@@ -64,7 +64,7 @@ spec:
         - name: ENTITLE_LOG_TO_FILE
           value: "true"
         {{- end }}
-        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+        image: {{ include "entitle-agent.repository" . }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
         imagePullPolicy: Always
         name: {{ include "entitle-agent.fullname" . }}
         {{- with .Values.agent.resources }}
