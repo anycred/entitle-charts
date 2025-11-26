@@ -133,7 +133,7 @@ Logic: Determine the Container Registry URL.
 {{- define "entitle-agent.repository" -}}
 {{- $newCreds := include "entitle-agent.extractedImageCredentials" . -}}
 {{- if $newCreds -}}
-beyondtrust-eng-docker-prod-local.jfrog.io/beyondtrust/entitle/entitle-agent-qa
+beyondtrust-eng-docker-prod-local.jfrog.io/beyondtrust/entitle/entitle-agent
 {{- else -}}
 {{- .Values.agent.image.repository -}}
 {{- end -}}
