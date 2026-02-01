@@ -34,6 +34,18 @@ externalKmsParams:
 global:
   environment: "onprem"  # Used for metadata of deployment
 
+  # Skip subchart's datadog.yaml ConfigMap - parent chart creates it with proxy config
+  skipDatadogYamlConfigMap: true
+
+  # Datadog proxy configuration (chart defaults). See proxy-feature-diagram.md
+  # NOTE: Keys must be lowercase (helper converts token platform to lowercase)
+  proxyConfig:
+    platformMap:
+      qa: "http://agent.qa.entitle.io:8080"
+      dev: "http://agent.dev.entitle.io:8080"
+      prodeu: "http://agent.prod-eu.entitle.io:8080"
+      produs: "http://agent.prod-us.entitle.io:8080"
+    noProxy: "127.0.0.1,localhost,169.254.169.254,.local,.internal,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,192.168.49.2,10.96.0.1"
 agent:
   token: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
   image:
@@ -127,3 +139,6 @@ datadog:
       # datadog.kubelet.tlsVerify -- Toggle kubelet TLS verification
       # @default -- true
       tlsVerify: true
+  # Enable custom datadog.yaml config for proxy settings
+  agents:
+    useConfigMap: true

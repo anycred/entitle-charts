@@ -101,3 +101,68 @@ Node selector
 {{- end }}
 {{/*
 */}}
+
+{{/* Datadog proxy helper functions. See proxy-feature-diagram.md */}}
+
+{{/* Gets token from agent.token */}}
+{{- define "entitle-agent.getToken" -}}
+  {{- if and $.Values.agent $.Values.agent.token -}}
+    {{- $.Values.agent.token -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Extracts "routing" field from token */}}
+{{- define "entitle-agent.extractedRouting" -}}
+  {{- $token := include "entitle-agent.getToken" . -}}
+  {{- if $token -}}
+    {{- $decoded := $token | b64dec -}}
+    {{- if hasPrefix "{" $decoded -}}
+      {{- $json := $decoded | fromJson -}}
+      {{- if hasKey $json "routing" -}}
+        {{- $json.routing -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Extracts "platform" field from token */}}
+{{- define "entitle-agent.extractedPlatform" -}}
+  {{- $token := include "entitle-agent.getToken" . -}}
+  {{- if $token -}}
+    {{- $decoded := $token | b64dec -}}
+    {{- if hasPrefix "{" $decoded -}}
+      {{- $json := $decoded | fromJson -}}
+      {{- if hasKey $json "platform" -}}
+        {{- index $json "platform" -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Extracts "platform" from token and looks up proxy URL in platformMap */}}
+{{- define "entitle-agent.proxyUrl" -}}
+  {{- $token := include "entitle-agent.getToken" . -}}
+  {{- if $token -}}
+    {{- $decoded := $token | b64dec -}}
+    {{- if hasPrefix "{" $decoded -}}
+      {{- $json := $decoded | fromJson -}}
+      {{- if hasKey $json "platform" -}}
+        {{- $platform := index $json "platform" | lower | trim -}}
+        {{- if and $.Values.global $.Values.global.proxyConfig $.Values.global.proxyConfig.platformMap -}}
+          {{- index $.Values.global.proxyConfig.platformMap $platform | default "" -}}
+        {{- else if and $.Values.proxyConfig $.Values.proxyConfig.platformMap -}}
+          {{- index $.Values.proxyConfig.platformMap $platform | default "" -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Gets noProxy bypass list from chart defaults */}}
+{{- define "entitle-agent.noProxy" -}}
+  {{- if and $.Values.global $.Values.global.proxyConfig $.Values.global.proxyConfig.noProxy -}}
+    {{- $.Values.global.proxyConfig.noProxy -}}
+  {{- else if and $.Values.proxyConfig $.Values.proxyConfig.noProxy -}}
+    {{- $.Values.proxyConfig.noProxy -}}
+  {{- end -}}
+{{- end -}}

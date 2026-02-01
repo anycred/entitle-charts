@@ -37,6 +37,26 @@ spec:
     spec:
       containers:
       - env:
+        # Token extracted values (decoded from agent.token base64 JSON)
+        - name: ENTITLE_ROUTING_VERSION
+          value: {{ include "entitle-agent.extractedRouting" . | quote }}
+        - name: ENTITLE_PLATFORM
+          value: {{ include "entitle-agent.extractedPlatform" . | quote }}
+        - name: ENTITLE_PROXY_URL
+          value: {{ include "entitle-agent.proxyUrl" . | quote }}
+        - name: ENTITLE_MAX_ROUTING_VERSION
+          value: "v1"
+        # DD_PROXY_* env vars - only set when routing=v1 AND proxyUrl exists
+        {{- $routing := include "entitle-agent.extractedRouting" . -}}
+        {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
+        {{- if and (eq $routing "v1") $proxyUrl }}
+        - name: DD_PROXY_HTTP
+          value: {{ $proxyUrl | quote }}
+        - name: DD_PROXY_HTTPS
+          value: {{ $proxyUrl | quote }}
+        - name: DD_PROXY_NO_PROXY
+          value: {{ include "entitle-agent.noProxy" . | quote }}
+        {{- end }}
         {{- if eq .Values.kmsType "hashicorp_vault" }}
         - name: HASHICORP_VAULT_CONNECTION_STRING
           valueFrom:
@@ -93,13 +113,31 @@ spec:
           successThreshold: 1
           timeoutSeconds: 10
       {{- if and ( not .Values.datadog.enabled )  .Values.datadog.sidecarLogs }}
-      # https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+      # Datadog sidecar mode
       initContainers:
       - name: datadog-agent
         image: gcr.io/datadoghq/agent:latest
         imagePullPolicy: Always
         restartPolicy: Always
         env:
+          # Token extracted values (decoded from agent.token base64 JSON)
+          - name: ENTITLE_ROUTING
+            value: {{ include "entitle-agent.extractedRouting" $ | quote }}
+          - name: ENTITLE_PLATFORM
+            value: {{ include "entitle-agent.extractedPlatform" $ | quote }}
+          - name: ENTITLE_PROXY_URL
+            value: {{ include "entitle-agent.proxyUrl" $ | quote }}
+          # DD_PROXY_* env vars - only set when routing=v1 AND proxyUrl exists
+          {{- $routing := include "entitle-agent.extractedRouting" $ -}}
+          {{- $proxyUrl := include "entitle-agent.proxyUrl" $ -}}
+          {{- if and (eq $routing "v1") $proxyUrl }}
+          - name: DD_PROXY_HTTP
+            value: {{ $proxyUrl | quote }}
+          - name: DD_PROXY_HTTPS
+            value: {{ $proxyUrl | quote }}
+          - name: DD_PROXY_NO_PROXY
+            value: {{ include "entitle-agent.noProxy" $ | quote }}
+          {{- end }}
           - name: DD_API_KEY
             valueFrom:
               secretKeyRef:
