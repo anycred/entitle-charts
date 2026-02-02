@@ -57,7 +57,6 @@ Service account labels
 azure.workload.identity/use: "true"
 {{- end }}
 {{- end }}
-*/}}}}
 
 
 {{/*
@@ -83,8 +82,7 @@ Image Tag
 {{- end }}
 
 {{/*
-{{
-/* Fullname with image tag
+Fullname with image tag
 */}}
 {{- define "entitle-agent.fullnameWithImageTag" -}}
 {{- printf "%s_%s" (include "entitle-agent.fullname" .) (include "entitle-agent.imageTag" .) | trunc 63 | trimSuffix "-" }}
@@ -139,7 +137,7 @@ Node selector
   {{- end -}}
 {{- end -}}
 
-{{/* Extracts "platform" from token and looks up proxy URL in platformMap */}}
+{{/* Generates proxy URL from platform value: http://agent.{platform}.entitle.io:8080 */}}
 {{- define "entitle-agent.proxyUrl" -}}
   {{- $token := include "entitle-agent.getToken" . -}}
   {{- if $token -}}
@@ -147,11 +145,9 @@ Node selector
     {{- if hasPrefix "{" $decoded -}}
       {{- $json := $decoded | fromJson -}}
       {{- if hasKey $json "platform" -}}
-        {{- $platform := index $json "platform" | lower | trim -}}
-        {{- if and $.Values.global $.Values.global.proxyConfig $.Values.global.proxyConfig.platformMap -}}
-          {{- index $.Values.global.proxyConfig.platformMap $platform | default "" -}}
-        {{- else if and $.Values.proxyConfig $.Values.proxyConfig.platformMap -}}
-          {{- index $.Values.proxyConfig.platformMap $platform | default "" -}}
+        {{- $platform := index $json "platform" | trim -}}
+        {{- if $platform -}}
+          {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
         {{- end -}}
       {{- end -}}
     {{- end -}}

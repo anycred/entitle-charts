@@ -1,0 +1,20 @@
+# ConfigMap with proxy env vars for Datadog DaemonSet
+# URL is dynamically generated from token: http://agent.{platform}.entitle.io:8080
+# Referenced via datadog.envFrom in values.yaml
+{{- if .Values.datadog.enabled }}
+{{- $routing := include "entitle-agent.extractedRouting" . -}}
+{{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
+{{- if and (eq $routing "v1") $proxyUrl }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "entitle-agent.labels" . | nindent 4 }}
+data:
+  DD_PROXY_HTTP: {{ $proxyUrl | quote }}
+  DD_PROXY_HTTPS: {{ $proxyUrl | quote }}
+  DD_PROXY_NO_PROXY: {{ include "entitle-agent.noProxy" . | quote }}
+{{- end }}
+{{- end }}
