@@ -4,7 +4,7 @@
 {{- if .Values.datadog.enabled }}
 {{- $routing := include "entitle-agent.extractedRouting" . -}}
 {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-{{- if and (eq $routing "v1") $proxyUrl }}
+{{- if and $routing (ne $routing "v0") $proxyUrl }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,8 +13,16 @@ metadata:
   labels:
     {{- include "entitle-agent.labels" . | nindent 4 }}
 data:
+  # Datadog-specific proxy env vars
   DD_PROXY_HTTP: {{ $proxyUrl | quote }}
   DD_PROXY_HTTPS: {{ $proxyUrl | quote }}
   DD_PROXY_NO_PROXY: {{ include "entitle-agent.noProxy" . | quote }}
+  # Standard proxy env vars (used by Python requests library, etc.)
+  HTTP_PROXY: {{ $proxyUrl | quote }}
+  HTTPS_PROXY: {{ $proxyUrl | quote }}
+  NO_PROXY: {{ include "entitle-agent.noProxy" . | quote }}
+  http_proxy: {{ $proxyUrl | quote }}
+  https_proxy: {{ $proxyUrl | quote }}
+  no_proxy: {{ include "entitle-agent.noProxy" . | quote }}
 {{- end }}
 {{- end }}

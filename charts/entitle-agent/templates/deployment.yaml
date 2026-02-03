@@ -46,10 +46,10 @@ spec:
           value: {{ include "entitle-agent.proxyUrl" . | quote }}
         - name: ENTITLE_MAX_ROUTING_VERSION
           value: "v1"
-        # DD_PROXY_* env vars - only set when routing=v1 AND proxyUrl exists
+        # DD_PROXY_* env vars - only set when routing exists, is not "v0", AND proxyUrl exists
         {{- $routing := include "entitle-agent.extractedRouting" . -}}
         {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-        {{- if and (eq $routing "v1") $proxyUrl }}
+        {{- if and $routing (ne $routing "v0") $proxyUrl }}
         - name: DD_PROXY_HTTP
           value: {{ $proxyUrl | quote }}
         - name: DD_PROXY_HTTPS
@@ -127,16 +127,31 @@ spec:
             value: {{ include "entitle-agent.extractedPlatform" $ | quote }}
           - name: ENTITLE_PROXY_URL
             value: {{ include "entitle-agent.proxyUrl" $ | quote }}
-          # DD_PROXY_* env vars - only set when routing=v1 AND proxyUrl exists
+          # Proxy env vars - only set when routing exists, is not "v0", AND proxyUrl exists
           {{- $routing := include "entitle-agent.extractedRouting" $ -}}
           {{- $proxyUrl := include "entitle-agent.proxyUrl" $ -}}
-          {{- if and (eq $routing "v1") $proxyUrl }}
+          {{- $noProxy := include "entitle-agent.noProxy" $ -}}
+          {{- if and $routing (ne $routing "v0") $proxyUrl }}
+          # Datadog-specific proxy env vars
           - name: DD_PROXY_HTTP
             value: {{ $proxyUrl | quote }}
           - name: DD_PROXY_HTTPS
             value: {{ $proxyUrl | quote }}
           - name: DD_PROXY_NO_PROXY
-            value: {{ include "entitle-agent.noProxy" $ | quote }}
+            value: {{ $noProxy | quote }}
+          # Standard proxy env vars (for Go HTTP client, etc.)
+          - name: HTTP_PROXY
+            value: {{ $proxyUrl | quote }}
+          - name: HTTPS_PROXY
+            value: {{ $proxyUrl | quote }}
+          - name: NO_PROXY
+            value: {{ $noProxy | quote }}
+          - name: http_proxy
+            value: {{ $proxyUrl | quote }}
+          - name: https_proxy
+            value: {{ $proxyUrl | quote }}
+          - name: no_proxy
+            value: {{ $noProxy | quote }}
           {{- end }}
           - name: DD_API_KEY
             valueFrom:

@@ -137,7 +137,10 @@ Node selector
   {{- end -}}
 {{- end -}}
 
-{{/* Generates proxy URL from platform value: http://agent.{platform}.entitle.io:8080 */}}
+{{/* Generates proxy URL from platform value
+     Standard: http://agent.{platform}.entitle.io:8080
+     Dev:      http://agent-{num}.dev.entitle.io:8080 (for dev-one, dev-two, dev-three)
+*/}}
 {{- define "entitle-agent.proxyUrl" -}}
   {{- $token := include "entitle-agent.getToken" . -}}
   {{- if $token -}}
@@ -147,7 +150,12 @@ Node selector
       {{- if hasKey $json "platform" -}}
         {{- $platform := index $json "platform" | trim -}}
         {{- if $platform -}}
-          {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
+          {{- if hasPrefix "dev-" $platform -}}
+            {{- $devNum := trimPrefix "dev-" $platform -}}
+            {{- printf "http://agent-%s.dev.entitle.io:8080" $devNum -}}
+          {{- else -}}
+            {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
+          {{- end -}}
         {{- end -}}
       {{- end -}}
     {{- end -}}

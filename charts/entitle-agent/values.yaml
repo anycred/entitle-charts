@@ -34,7 +34,10 @@ externalKmsParams:
 global:
   environment: "onprem"  # Used for metadata of deployment
   proxyConfig:
-    noProxy: "127.0.0.1,localhost,169.254.169.254,.local,.internal,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,192.168.49.2,10.96.0.1"
+    # NO_PROXY for all cloud environments (AWS, Azure, GCP, on-prem, minikube)
+    # Note: Go doesn't support CIDR notation, so we use individual IPs and domain patterns
+    # Includes: localhost, cloud metadata IPs, Kubernetes internal domains, private networks, cloud provider domains
+    noProxy: "127.0.0.1,localhost,169.254.169.254,169.254.170.2,169.254.172.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,.cluster.local,.svc,.local,.internal,.amazonaws.com,.aws.internal,.ec2.internal,.compute.internal,.azure.com,.azure.net,.azurecr.io,.cloudapp.net,.cloudapp.azure.com,.googleapis.com,.gcr.io,.google.internal,.pkg.dev,.gke.internal"
 agent:
   token: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
   image:
@@ -68,12 +71,23 @@ datadog:
     # clusterAgent.enabled -- Set this to false to disable Datadog Cluster Agent
     enabled: false
   datadog:
+    confd:
+      kubelet.yaml: |-
+        ad_identifiers:
+          - _kubelet
+        instances:
+          - kubelet_url: https://%%host%%:10250
+            ssl_verify: false
+            skip_proxy: true
+            use_proxy: false
     apiKey:  # Datadog API key
     # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
     tags: []
     #   - "<KEY_1>:<VALUE_1>"
     #   - "<KEY_2>:<VALUE_2>"
+    ignoreAutoConfig:
+      - kubernetes_state
 
     # datadog.kubeStateMetricsEnabled -- If true, deploys the kube-state-metrics deployment
     ## ref: https://github.com/kubernetes/kube-state-metrics/tree/kube-state-metrics-helm-chart-2.13.2/charts/kube-state-metrics
@@ -94,6 +108,7 @@ datadog:
       # DEPRECATED. Use datadog.apm.portEnabled instead
       ## ref: https://github.com/DataDog/docker-dd-agent#tracing-from-the-host
       enabled: true
+      # Proxy is configured via DD_PROXY_HTTP/HTTPS env vars from entitle-agent-datadog-proxy ConfigMap
 
     ## @param logs - object - required
     ## Enable logs agent and provide custom configs
@@ -105,7 +120,7 @@ datadog:
       ## @param containerCollectAll - boolean - optional - default: false
       ## Enable this to allow log collection for all containers.
       containerCollectAll: true
-
+      useHTTP: true
     # datadog.containerExclude -- Exclude containers from the Agent
     # Autodiscovery, as a space-sepatered list
     ## ref: https://docs.datadoghq.com/agent/guide/autodiscovery-management/?tab=containerizedagent#exclude-containers
@@ -122,13 +137,21 @@ datadog:
       # datadog.processAgent.processCollection -- Set this to true to enable process collection in process monitoring agent
       ## Requires processAgent.enabled to be set to true to have any effect
       processCollection: true
+      # Proxy is configured via envFrom from entitle-agent-datadog-proxy ConfigMap
 
     # kubelet configuration
     kubelet:
       # datadog.kubelet.tlsVerify -- Toggle kubelet TLS verification
       # @default -- true
-      tlsVerify: true
+      tlsVerify: false
+      use_proxy: false
+      extra_config:
+        no_proxy:
+          - "192.168.49.2"
+          - "10.96.0.1"
+          - "kubernetes.default.svc"
   # Proxy env vars from ConfigMap (created by parent chart when routing=v1)
+  # All proxy URLs are dynamically generated from token platform: http://agent.{platform}.entitle.io:8080
   agents:
     containers:
       agent:
@@ -136,3 +159,13 @@ datadog:
           - configMapRef:
               name: entitle-agent-datadog-proxy
               optional: true  # ConfigMap only created when proxy is enabled
+      processAgent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true
+      traceAgent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true
