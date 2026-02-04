@@ -46,17 +46,6 @@ spec:
           value: {{ include "entitle-agent.proxyUrl" . | quote }}
         - name: ENTITLE_MAX_ROUTING_VERSION
           value: "v1"
-        # DD_PROXY_* env vars - only set when routing exists, is not "v0", AND proxyUrl exists
-        {{- $routing := include "entitle-agent.extractedRouting" . -}}
-        {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-        {{- if and $routing (ne $routing "v0") $proxyUrl }}
-        - name: DD_PROXY_HTTP
-          value: {{ $proxyUrl | quote }}
-        - name: DD_PROXY_HTTPS
-          value: {{ $proxyUrl | quote }}
-        - name: DD_PROXY_NO_PROXY
-          value: {{ include "entitle-agent.noProxy" . | quote }}
-        {{- end }}
         {{- if eq .Values.kmsType "hashicorp_vault" }}
         - name: HASHICORP_VAULT_CONNECTION_STRING
           valueFrom:
