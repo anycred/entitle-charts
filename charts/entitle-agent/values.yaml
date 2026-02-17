@@ -143,7 +143,7 @@ datadog:
     kubelet:
       # datadog.kubelet.tlsVerify -- Toggle kubelet TLS verification
       # @default -- true
-      tlsVerify: false
+      tlsVerify: true
       use_proxy: false
       extra_config:
         no_proxy:
