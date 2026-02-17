@@ -100,7 +100,7 @@ Node selector
 {{/*
 */}}
 
-{{/* Datadog proxy helper functions. See proxy-feature-diagram.md */}}
+{{/* Datadog proxy helper functions */}}
 
 {{/* Gets token from agent.token */}}
 {{- define "entitle-agent.getToken" -}}
@@ -109,32 +109,28 @@ Node selector
   {{- end -}}
 {{- end -}}
 
-{{/* Extracts "routing" field from token */}}
-{{- define "entitle-agent.extractedRouting" -}}
-  {{- $token := include "entitle-agent.getToken" . -}}
-  {{- if $token -}}
-    {{- $decoded := $token | b64dec -}}
+{{/* Extracts a field from the base64-encoded token JSON.
+     Usage: include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "fieldName") */}}
+{{- define "entitle-agent.extractTokenField" -}}
+  {{- if .token -}}
+    {{- $decoded := .token | b64dec -}}
     {{- if hasPrefix "{" $decoded -}}
       {{- $json := $decoded | fromJson -}}
-      {{- if hasKey $json "routing" -}}
-        {{- $json.routing -}}
+      {{- if hasKey $json .field -}}
+        {{- index $json .field -}}
       {{- end -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}
 
+{{/* Extracts "routing" field from token */}}
+{{- define "entitle-agent.extractedRouting" -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "routing") -}}
+{{- end -}}
+
 {{/* Extracts "platform" field from token */}}
 {{- define "entitle-agent.extractedPlatform" -}}
-  {{- $token := include "entitle-agent.getToken" . -}}
-  {{- if $token -}}
-    {{- $decoded := $token | b64dec -}}
-    {{- if hasPrefix "{" $decoded -}}
-      {{- $json := $decoded | fromJson -}}
-      {{- if hasKey $json "platform" -}}
-        {{- index $json "platform" -}}
-      {{- end -}}
-    {{- end -}}
-  {{- end -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
 {{- end -}}
 
 {{/* Generates proxy URL from platform value
@@ -142,22 +138,13 @@ Node selector
      Dev:      http://agent-{num}.dev.entitle.io:8080 (for dev-one, dev-two, dev-three)
 */}}
 {{- define "entitle-agent.proxyUrl" -}}
-  {{- $token := include "entitle-agent.getToken" . -}}
-  {{- if $token -}}
-    {{- $decoded := $token | b64dec -}}
-    {{- if hasPrefix "{" $decoded -}}
-      {{- $json := $decoded | fromJson -}}
-      {{- if hasKey $json "platform" -}}
-        {{- $platform := index $json "platform" | trim -}}
-        {{- if $platform -}}
-          {{- if hasPrefix "dev-" $platform -}}
-            {{- $devNum := trimPrefix "dev-" $platform -}}
-            {{- printf "http://agent-%s.dev.entitle.io:8080" $devNum -}}
-          {{- else -}}
-            {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
-          {{- end -}}
-        {{- end -}}
-      {{- end -}}
+  {{- $platform := include "entitle-agent.extractedPlatform" . | trim -}}
+  {{- if $platform -}}
+    {{- if hasPrefix "dev-" $platform -}}
+      {{- $devNum := trimPrefix "dev-" $platform -}}
+      {{- printf "http://agent-%s.dev.entitle.io:8080" $devNum -}}
+    {{- else -}}
+      {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}
