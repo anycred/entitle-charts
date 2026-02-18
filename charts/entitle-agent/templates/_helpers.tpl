@@ -123,6 +123,24 @@ Node selector
   {{- end -}}
 {{- end -}}
 
+{{/* Resolves datadogApiKey: --set datadog.datadog.apiKey takes priority, otherwise extract from token */}}
+{{- define "entitle-agent.datadogApiKey" -}}
+  {{- if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
+    {{- .Values.datadog.datadog.apiKey -}}
+  {{- else -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "datadogApiKey") -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Resolves imageCredentials: --set imageCredentials takes priority, otherwise extract from token */}}
+{{- define "entitle-agent.imageCredentials" -}}
+  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
+    {{- .Values.imageCredentials -}}
+  {{- else -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "imageCredentials") -}}
+  {{- end -}}
+{{- end -}}
+
 {{/* Extracts "routing" field from token */}}
 {{- define "entitle-agent.extractedRouting" -}}
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "routing") -}}
