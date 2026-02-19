@@ -108,40 +108,11 @@ spec:
         image: gcr.io/datadoghq/agent:latest
         imagePullPolicy: Always
         restartPolicy: Always
+        envFrom:
+          - configMapRef:
+              name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
+              optional: true
         env:
-          # Token extracted values (decoded from agent.token base64 JSON)
-          - name: ENTITLE_ROUTING
-            value: {{ include "entitle-agent.extractedRouting" $ | quote }}
-          - name: ENTITLE_PLATFORM
-            value: {{ include "entitle-agent.extractedPlatform" $ | quote }}
-          - name: ENTITLE_PROXY_URL
-            value: {{ include "entitle-agent.proxyUrl" $ | quote }}
-          # Proxy env vars - only set when routing exists, is not "v0", AND proxyUrl exists
-          {{- $routing := include "entitle-agent.extractedRouting" $ -}}
-          {{- $proxyUrl := include "entitle-agent.proxyUrl" $ -}}
-          {{- $noProxy := include "entitle-agent.noProxy" $ -}}
-          {{- if and $routing (ne $routing "v0") $proxyUrl }}
-          # Datadog-specific proxy env vars
-          - name: DD_PROXY_HTTP
-            value: {{ $proxyUrl | quote }}
-          - name: DD_PROXY_HTTPS
-            value: {{ $proxyUrl | quote }}
-          - name: DD_PROXY_NO_PROXY
-            value: {{ $noProxy | quote }}
-          # Standard proxy env vars (for Go HTTP client, etc.)
-          - name: HTTP_PROXY
-            value: {{ $proxyUrl | quote }}
-          - name: HTTPS_PROXY
-            value: {{ $proxyUrl | quote }}
-          - name: NO_PROXY
-            value: {{ $noProxy | quote }}
-          - name: http_proxy
-            value: {{ $proxyUrl | quote }}
-          - name: https_proxy
-            value: {{ $proxyUrl | quote }}
-          - name: no_proxy
-            value: {{ $noProxy | quote }}
-          {{- end }}
           - name: DD_API_KEY
             valueFrom:
               secretKeyRef:

@@ -1,9 +1,8 @@
-# ConfigMap with proxy env vars for Datadog DaemonSet
+# ConfigMap with proxy env vars — shared by DaemonSet (via envFrom) and Sidecar (via envFrom)
 # URL is dynamically generated from token: http://agent.{platform}.entitle.io:8080
-# Referenced via datadog.envFrom in values.yaml
-{{- if .Values.datadog.enabled }}
 {{- $routing := include "entitle-agent.extractedRouting" . -}}
 {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
+{{- $noProxy := include "entitle-agent.noProxy" . -}}
 {{- if and $routing (ne $routing "v0") $proxyUrl }}
 apiVersion: v1
 kind: ConfigMap
@@ -13,16 +12,15 @@ metadata:
   labels:
     {{- include "entitle-agent.labels" . | nindent 4 }}
 data:
-  # Datadog-specific proxy env vars
+  # Datadog-specific proxy vars (read by DD agent binary)
   DD_PROXY_HTTP: {{ $proxyUrl | quote }}
   DD_PROXY_HTTPS: {{ $proxyUrl | quote }}
-  DD_PROXY_NO_PROXY: {{ include "entitle-agent.noProxy" . | quote }}
-  # Standard proxy env vars (used by Python requests library, etc.)
+  DD_PROXY_NO_PROXY: {{ $noProxy | quote }}
+  # Standard proxy vars — both cases needed (uppercase: curl/wget, lowercase: other libs)
   HTTP_PROXY: {{ $proxyUrl | quote }}
   HTTPS_PROXY: {{ $proxyUrl | quote }}
-  NO_PROXY: {{ include "entitle-agent.noProxy" . | quote }}
+  NO_PROXY: {{ $noProxy | quote }}
   http_proxy: {{ $proxyUrl | quote }}
   https_proxy: {{ $proxyUrl | quote }}
-  no_proxy: {{ include "entitle-agent.noProxy" . | quote }}
-{{- end }}
+  no_proxy: {{ $noProxy | quote }}
 {{- end }}
