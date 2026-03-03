@@ -204,4 +204,3 @@ datadog:
           - "event.datadoghq.eu"
           - "instrumentation-telemetry-intake.datadoghq.com"
           - "instrumentation-telemetry-intake.datadoghq.eu"
-
