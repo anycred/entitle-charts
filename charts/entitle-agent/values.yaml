@@ -112,7 +112,6 @@ datadog:
       # DEPRECATED. Use datadog.apm.portEnabled instead
       ## ref: https://github.com/DataDog/docker-dd-agent#tracing-from-the-host
       enabled: true
-      # Proxy is configured via DD_PROXY_HTTP/HTTPS env vars from entitle-agent-datadog-proxy ConfigMap
 
     ## @param logs - object - required
     ## Enable logs agent and provide custom configs
@@ -141,7 +140,6 @@ datadog:
       # datadog.processAgent.processCollection -- Set this to true to enable process collection in process monitoring agent
       ## Requires processAgent.enabled to be set to true to have any effect
       processCollection: true
-      # Proxy is configured via envFrom from entitle-agent-datadog-proxy ConfigMap
 
     # kubelet configuration
     kubelet:
