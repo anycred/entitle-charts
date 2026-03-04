@@ -71,19 +71,6 @@ datadog:
     # clusterAgent.enabled -- Set this to false to disable Datadog Cluster Agent
     enabled: false
   datadog:
-    # Kubelet check configuration for the Datadog DaemonSet agent.
-    # Kubelet is a local service running on each node that provides pod/container metrics.
-    # The Datadog agent scrapes it for health and resource data. This config ensures the
-    # agent can connect to kubelet correctly when the proxy feature is enabled.
-    confd:
-      kubelet.yaml: |-
-        ad_identifiers:
-          - _kubelet  # Attach this config to Datadog's built-in kubelet check
-        instances:
-          - kubelet_url: https://%%host%%:10250  # Connect to the local node's kubelet API (%%host%% = node IP at runtime)
-            ssl_verify: false  # Disable TLS verification because some clusters use self-signed kubelet certs
-            skip_proxy: true  # Kubelet is local to the node and must not go through the external proxy
-            use_proxy: false  # Same as skip_proxy, both set for compatibility across Datadog agent versions
     apiKey:  # Datadog API key
     # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
