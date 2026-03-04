@@ -34,9 +34,8 @@ externalKmsParams:
 global:
   environment: "onprem"  # Used for metadata of deployment
   proxyConfig:
-    # NO_PROXY for all cloud environments (AWS, Azure, GCP, on-prem)
-    # Note: Go doesn't support CIDR notation, so we use individual IPs and domain patterns
-    # Includes: localhost, cloud metadata IPs, Kubernetes internal domains, private networks, cloud provider domains
+    # NO_PROXY bypass list for Datadog pods — ensures internal traffic (kubelet, K8s API, cloud metadata,
+    # private networks) is not routed through the proxy. Covers all cloud providers (AWS, Azure, GCP).
     noProxy: "127.0.0.1,localhost,169.254.169.254,169.254.170.2,169.254.172.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,.cluster.local,.svc,.local,.internal,.amazonaws.com,.aws.internal,.ec2.internal,.compute.internal,.azure.com,.azure.net,.azurecr.io,.cloudapp.net,.cloudapp.azure.com,.googleapis.com,.gcr.io,.google.internal,.pkg.dev,.gke.internal"
 agent:
   token: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
@@ -79,7 +78,7 @@ datadog:
     confd:
       kubelet.yaml: |-
         ad_identifiers:
-          - _kubelet  # Built-in Datadog identifier for the kubelet check
+          # Built-in Datadog identifier for the kubelet check
         instances:
           - skip_proxy: true  # Bypass proxy — kubelet is a local node service, unreachable via proxy
             use_proxy: false  # Same as skip_proxy, both set for cross-version compatibility
@@ -89,8 +88,6 @@ datadog:
     tags: []
     #   - "<KEY_1>:<VALUE_1>"
     #   - "<KEY_2>:<VALUE_2>"
-    ignoreAutoConfig:
-      - kubernetes_state
 
     # datadog.kubeStateMetricsEnabled -- If true, deploys the kube-state-metrics deployment
     ## ref: https://github.com/kubernetes/kube-state-metrics/tree/kube-state-metrics-helm-chart-2.13.2/charts/kube-state-metrics
