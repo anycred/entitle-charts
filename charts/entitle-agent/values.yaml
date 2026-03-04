@@ -71,22 +71,18 @@ datadog:
     # clusterAgent.enabled -- Set this to false to disable Datadog Cluster Agent
     enabled: false
   datadog:
-    # confd overrides the kubelet check config at the check level.
-    # Why needed: The Helm-level kubelet.use_proxy setting is not enough — the kubelet check
-    # still routes through the proxy and fails with "Tunnel connection failed". This confd block
-    # forces the check to bypass the proxy directly.
-    # Note: confd is all-or-nothing — when overriding, we must redeclare all fields:
-    #   - kubelet_url, ssl_verify: Datadog defaults (not changed, just re-declared)
-    #   - skip_proxy, use_proxy: NEW — added to bypass proxy for kubelet traffic
+    # Overrides the kubelet check config to bypass the proxy.
+    # Without this, the kubelet check routes traffic through the DD proxy and fails.
+    # Only skip_proxy/use_proxy are set — kubelet_url and ssl_verify are auto-detected
+    # by the Datadog agent. Do NOT add kubelet_url with %%host%% here — it breaks
+    # auto-discovery ("AD: variable not supported by listener").
     confd:
       kubelet.yaml: |-
         ad_identifiers:
-          - _kubelet
+          - _kubelet  # Built-in Datadog identifier for the kubelet check
         instances:
-          - kubelet_url: https://%%host%%:10250  # Default — re-declared because confd overrides entire config
-            ssl_verify: true  # Default — re-declared because confd overrides entire config
-            skip_proxy: true  #  bypass proxy for kubelet (local node traffic)
-            use_proxy: false  # same as skip_proxy, both set for cross-version compatibility
+          - skip_proxy: true  # Bypass proxy — kubelet is a local node service, unreachable via proxy
+            use_proxy: false  # Same as skip_proxy, both set for cross-version compatibility
     apiKey:  # Datadog API key
     # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
