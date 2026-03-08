@@ -37,6 +37,15 @@ spec:
     spec:
       containers:
       - env:
+        # Token extracted values (decoded from agent.token base64 JSON)
+        - name: ENTITLE_ROUTING_VERSION
+          value: {{ include "entitle-agent.extractedRouting" . | quote }}
+        - name: ENTITLE_PLATFORM
+          value: {{ include "entitle-agent.extractedPlatform" . | quote }}
+        - name: ENTITLE_PROXY_URL
+          value: {{ include "entitle-agent.proxyUrl" . | quote }}
+        - name: ENTITLE_MAX_ROUTING_VERSION
+          value: "v1"
         {{- if eq .Values.kmsType "hashicorp_vault" }}
         - name: HASHICORP_VAULT_CONNECTION_STRING
           valueFrom:
@@ -93,12 +102,16 @@ spec:
           successThreshold: 1
           timeoutSeconds: 10
       {{- if and ( not .Values.datadog.enabled )  .Values.datadog.sidecarLogs }}
-      # https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+      # Datadog sidecar mode
       initContainers:
       - name: datadog-agent
         image: gcr.io/datadoghq/agent:latest
         imagePullPolicy: Always
         restartPolicy: Always
+        envFrom:
+          - configMapRef:
+              name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
+              optional: true
         env:
           - name: DD_API_KEY
             valueFrom:

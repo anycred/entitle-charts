@@ -33,7 +33,10 @@ externalKmsParams:
 
 global:
   environment: "onprem"  # Used for metadata of deployment
-
+  proxyConfig:
+    # NO_PROXY bypass list for Datadog pods — ensures internal traffic (kubelet, K8s API, cloud metadata,
+    # private networks) is not routed through the proxy. Covers all cloud providers (AWS, Azure, GCP).
+    noProxy: "127.0.0.1,localhost,169.254.169.254,169.254.170.2,169.254.172.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,.cluster.local,.svc,.local,.internal,.amazonaws.com,.aws.internal,.ec2.internal,.compute.internal,.azure.com,.azure.net,.azurecr.io,.cloudapp.net,.cloudapp.azure.com,.googleapis.com,.gcr.io,.google.internal,.pkg.dev,.gke.internal"
 agent:
   token: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
   image:
@@ -67,6 +70,18 @@ datadog:
     # clusterAgent.enabled -- Set this to false to disable Datadog Cluster Agent
     enabled: false
   datadog:
+    # Overrides the kubelet check config to bypass the proxy.
+    # Without this, the kubelet check routes traffic through the DD proxy and fails.
+    # Only skip_proxy/use_proxy are set — kubelet_url and ssl_verify are auto-detected
+    # by the Datadog agent. Do NOT add kubelet_url with %%host%% here — it breaks
+    # auto-discovery ("AD: variable not supported by listener").
+    confd:
+      kubelet.yaml: |-
+        ad_identifiers:
+          # Built-in Datadog identifier for the kubelet check
+        instances:
+          - skip_proxy: true  # Bypass proxy — kubelet is a local node service, unreachable via proxy
+            use_proxy: false  # Same as skip_proxy, both set for cross-version compatibility
     apiKey:  # Datadog API key
     # datadog.tags -- List of static tags to attach to every metric, event and service check collected by this Agent.
     ## Learn more about tagging: https://docs.datadoghq.com/tagging/
@@ -104,7 +119,7 @@ datadog:
       ## @param containerCollectAll - boolean - optional - default: false
       ## Enable this to allow log collection for all containers.
       containerCollectAll: true
-
+      useHTTP: true
     # datadog.containerExclude -- Exclude containers from the Agent
     # Autodiscovery, as a space-sepatered list
     ## ref: https://docs.datadoghq.com/agent/guide/autodiscovery-management/?tab=containerizedagent#exclude-containers
@@ -127,3 +142,26 @@ datadog:
       # datadog.kubelet.tlsVerify -- Toggle kubelet TLS verification
       # @default -- true
       tlsVerify: true
+      use_proxy: false
+      extra_config:
+        no_proxy:
+          - "kubernetes.default.svc"
+  # Proxy env vars from ConfigMap (created by parent chart when routing=v1)
+  # All proxy URLs are dynamically generated from token platform: http://agent.{platform}.entitle.io:8080
+  agents:
+    containers:
+      agent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true  # ConfigMap only created when proxy is enabled
+      processAgent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true
+      traceAgent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true

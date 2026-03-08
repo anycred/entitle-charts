@@ -57,7 +57,6 @@ Service account labels
 azure.workload.identity/use: "true"
 {{- end }}
 {{- end }}
-*/}}}}
 
 
 {{/*
@@ -83,8 +82,7 @@ Image Tag
 {{- end }}
 
 {{/*
-{{
-/* Fullname with image tag
+Fullname with image tag
 */}}
 {{- define "entitle-agent.fullnameWithImageTag" -}}
 {{- printf "%s_%s" (include "entitle-agent.fullname" .) (include "entitle-agent.imageTag" .) | trunc 63 | trimSuffix "-" }}
@@ -101,3 +99,79 @@ Node selector
 {{- end }}
 {{/*
 */}}
+
+{{/* Datadog proxy helper functions */}}
+
+{{/* Gets token from agent.token */}}
+{{- define "entitle-agent.getToken" -}}
+  {{- if and $.Values.agent $.Values.agent.token -}}
+    {{- $.Values.agent.token -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Extracts a field from the base64-encoded token JSON.
+     Usage: include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "fieldName") */}}
+{{- define "entitle-agent.extractTokenField" -}}
+  {{- if .token -}}
+    {{- $decoded := .token | b64dec -}}
+    {{- if hasPrefix "{" $decoded -}}
+      {{- $json := $decoded | fromJson -}}
+      {{- if hasKey $json .field -}}
+        {{- index $json .field -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Resolves datadogApiKey: --set datadog.datadog.apiKey takes priority, otherwise extract from token */}}
+{{- define "entitle-agent.datadogApiKey" -}}
+  {{- if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
+    {{- .Values.datadog.datadog.apiKey -}}
+  {{- else -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "datadogApiKey") -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Resolves imageCredentials: --set imageCredentials takes priority, otherwise extract from token */}}
+{{- define "entitle-agent.imageCredentials" -}}
+  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
+    {{- .Values.imageCredentials -}}
+  {{- else -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "imageCredentials") -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Extracts "routing" field from token */}}
+{{- define "entitle-agent.extractedRouting" -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "routing") -}}
+{{- end -}}
+
+{{/* Extracts "platform" field from token */}}
+{{- define "entitle-agent.extractedPlatform" -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
+{{- end -}}
+
+{{/* Generates proxy URL from platform value
+     Standard: http://agent.{platform}.entitle.io:8080
+     Dev:      http://agent-{num}.dev.entitle.io:8080 (for dev-one, dev-two, dev-three)
+*/}}
+{{- define "entitle-agent.proxyUrl" -}}
+  {{- $platform := include "entitle-agent.extractedPlatform" . | trim -}}
+  {{- if $platform -}}
+    {{- if hasPrefix "dev-" $platform -}}
+      {{- $devNum := trimPrefix "dev-" $platform -}}
+      {{- printf "http://agent-%s.dev.entitle.io:8080" $devNum -}}
+    {{- else -}}
+      {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Gets noProxy bypass list from chart defaults */}}
+{{- define "entitle-agent.noProxy" -}}
+  {{- if and $.Values.global $.Values.global.proxyConfig $.Values.global.proxyConfig.noProxy -}}
+    {{- $.Values.global.proxyConfig.noProxy -}}
+  {{- else if and $.Values.proxyConfig $.Values.proxyConfig.noProxy -}}
+    {{- $.Values.proxyConfig.noProxy -}}
+  {{- end -}}
+{{- end -}}
