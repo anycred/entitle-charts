@@ -33,10 +33,6 @@ externalKmsParams:
 
 global:
   environment: "onprem"  # Used for metadata of deployment
-  proxyConfig:
-    # NO_PROXY bypass list for Datadog pods — ensures internal traffic (kubelet, K8s API, cloud metadata,
-    # private networks) is not routed through the proxy. Covers all cloud providers (AWS, Azure, GCP).
-    noProxy: "127.0.0.1,localhost,169.254.169.254,169.254.170.2,169.254.172.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster.local,.cluster.local,.svc,.local,.internal,.amazonaws.com,.aws.internal,.ec2.internal,.compute.internal,.azure.com,.azure.net,.azurecr.io,.cloudapp.net,.cloudapp.azure.com,.googleapis.com,.gcr.io,.google.internal,.pkg.dev,.gke.internal"
 agent:
   token: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
   image:
