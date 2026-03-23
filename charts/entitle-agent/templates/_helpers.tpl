@@ -167,11 +167,3 @@ Node selector
   {{- end -}}
 {{- end -}}
 
-{{/* Gets noProxy bypass list from chart defaults */}}
-{{- define "entitle-agent.noProxy" -}}
-  {{- if and $.Values.global $.Values.global.proxyConfig $.Values.global.proxyConfig.noProxy -}}
-    {{- $.Values.global.proxyConfig.noProxy -}}
-  {{- else if and $.Values.proxyConfig $.Values.proxyConfig.noProxy -}}
-    {{- $.Values.proxyConfig.noProxy -}}
-  {{- end -}}
-{{- end -}}
