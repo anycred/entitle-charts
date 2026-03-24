@@ -38,6 +38,7 @@ agent:
   image:
     repository: ghcr.io/anycred/entitle-agent  # Docker image repository
     tag: latest  # Tag for docker image of agent
+  agent_version: "default"  # Controls image tag + restart policy. Valid: default, latest-on-restart, auto-update, or a pinned version (e.g. 2.7.4)
 
   replicas: 3  # Number of pods to run
   resources:

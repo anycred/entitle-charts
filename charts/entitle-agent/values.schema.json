@@ -197,6 +197,10 @@
             "repository",
             "tag"
           ]
+        },
+        "agent_version": {
+          "type": "string",
+          "default": "default"
         }
       }
     }
