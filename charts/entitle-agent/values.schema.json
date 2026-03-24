@@ -209,6 +209,11 @@
               "description": "Kafka public bootstrap servers (optional)"
             }
           }
+        },
+        "agent_version": {
+          "type": "string",
+          "default": "default",
+          "description": "Controls image tag + restart policy. Valid: default, latest-on-restart, auto-update, or a pinned semver (e.g. 2.7.4)."
         }
       }
     },

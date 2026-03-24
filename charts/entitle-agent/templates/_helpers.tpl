@@ -209,6 +209,12 @@ healthcheck init container so validators run with identical configuration.
   value: {{ include "entitle-agent.proxyUrl" . | quote }}
 - name: ENTITLE_MAX_ROUTING_VERSION
   value: "v1"
+- name: HELM_AGENT_VERSION
+  value: {{ .Values.agent.agent_version | default "default" | quote }}
+- name: HELM_AGENT_IMAGE_TAG
+  value: {{ include "entitle-agent.resolvedImageTag" . | quote }}
+- name: HELM_RESTART_POLICY
+  value: {{ include "entitle-agent.resolvedRestartPolicy" . | quote }}
 {{- if eq .Values.kmsType "hashicorp_vault" }}
 - name: HASHICORP_VAULT_CONNECTION_STRING
   valueFrom:
@@ -237,3 +243,84 @@ healthcheck init container so validators run with identical configuration.
   value: "true"
 {{- end }}
 {{- end }}
+
+{{/* ============================================================
+     Auto-update helper functions
+     ============================================================ */}}
+
+{{/* Extracts "autoUpdate" field from token */}}
+{{- define "entitle-agent.extractedAutoUpdate" -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "autoUpdate") -}}
+{{- end -}}
+
+{{/*
+Validates agent_version + image.tag compatibility. Fails helm install on incompatible combos.
+*/}}
+{{- define "entitle-agent.validateAgentVersion" -}}
+  {{- $imageTag := .Values.agent.image.tag | default "latest" -}}
+  {{- $agentVersion := .Values.agent.agent_version | default "default" -}}
+  {{- $isLatest := eq $imageTag "latest" -}}
+  {{- $isKnownKeyword := or (eq $agentVersion "default") (eq $agentVersion "auto-update") (eq $agentVersion "latest-on-restart") -}}
+
+  {{- if not $isLatest -}}
+    {{- if or (eq $agentVersion "auto-update") (eq $agentVersion "latest-on-restart") -}}
+      {{- fail (printf "You can't set agent_version='%s' with a manually set value for agent.image.tag. Please unset agent.image.tag." $agentVersion) -}}
+    {{- end -}}
+    {{- if not $isKnownKeyword -}}
+      {{- fail "You can't set both agent_version and agent.image.tag, please unset agent.image.tag." -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/*
+Resolves the effective image tag based on agent_version and image.tag.
+  - Custom image.tag (non-latest) + default => custom tag (legacy)
+  - latest + keyword (default/auto-update/latest-on-restart) => latest
+  - latest + hardcoded version (e.g. 2.7.4) => that version
+*/}}
+{{- define "entitle-agent.resolvedImageTag" -}}
+  {{- $imageTag := .Values.agent.image.tag | default "latest" -}}
+  {{- $agentVersion := .Values.agent.agent_version | default "default" -}}
+  {{- $isLatest := eq $imageTag "latest" -}}
+  {{- $isKnownKeyword := or (eq $agentVersion "default") (eq $agentVersion "auto-update") (eq $agentVersion "latest-on-restart") -}}
+
+  {{- if not $isLatest -}}
+    {{- $imageTag -}}
+  {{- else if $isKnownKeyword -}}
+    {{- "latest" -}}
+  {{- else -}}
+    {{- $agentVersion -}}
+  {{- end -}}
+{{- end -}}
+
+{{/*
+Resolves restart policy: "always" or "never".
+  - Custom image.tag (non-latest) => never
+  - default + autoUpdate missing/v0 => never
+  - default + autoUpdate v1 => always
+  - latest-on-restart => never
+  - auto-update => always
+  - hardcoded version => never
+*/}}
+{{- define "entitle-agent.resolvedRestartPolicy" -}}
+  {{- $imageTag := .Values.agent.image.tag | default "latest" -}}
+  {{- $agentVersion := .Values.agent.agent_version | default "default" -}}
+  {{- $isLatest := eq $imageTag "latest" -}}
+  {{- $autoUpdate := include "entitle-agent.extractedAutoUpdate" . -}}
+
+  {{- if not $isLatest -}}
+    {{- "never" -}}
+  {{- else if eq $agentVersion "auto-update" -}}
+    {{- "always" -}}
+  {{- else if eq $agentVersion "latest-on-restart" -}}
+    {{- "never" -}}
+  {{- else if eq $agentVersion "default" -}}
+    {{- if eq $autoUpdate "v1" -}}
+      {{- "always" -}}
+    {{- else -}}
+      {{- "never" -}}
+    {{- end -}}
+  {{- else -}}
+    {{- "never" -}}
+  {{- end -}}
+{{- end -}}
