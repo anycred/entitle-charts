@@ -1,3 +1,4 @@
+{{- include "entitle-agent.validateAgentVersion" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -46,6 +47,13 @@ spec:
           value: {{ include "entitle-agent.proxyUrl" . | quote }}
         - name: ENTITLE_MAX_ROUTING_VERSION
           value: "v1"
+        # Auto-update configuration (from agent_version helm value + token autoUpdate field)
+        - name: HELM_AGENT_VERSION
+          value: {{ .Values.agent.agent_version | default "default" | quote }}
+        - name: HELM_AGENT_IMAGE_TAG
+          value: {{ include "entitle-agent.resolvedImageTag" . | quote }}
+        - name: HELM_RESTART_POLICY
+          value: {{ include "entitle-agent.resolvedRestartPolicy" . | quote }}
         {{- if eq .Values.kmsType "hashicorp_vault" }}
         - name: HASHICORP_VAULT_CONNECTION_STRING
           valueFrom:
@@ -73,7 +81,7 @@ spec:
         - name: ENTITLE_LOG_TO_FILE
           value: "true"
         {{- end }}
-        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+        image: {{ .Values.agent.image.repository }}:{{ include "entitle-agent.resolvedImageTag" . }}
         imagePullPolicy: Always
         name: {{ include "entitle-agent.fullname" . }}
         {{- with .Values.agent.resources }}
