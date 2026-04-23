@@ -167,3 +167,45 @@ Node selector
   {{- end -}}
 {{- end -}}
 
+{{/*
+Agent secret name — resolves to the appropriate Secret for the agent token.
+Returns agent.existingSecret if set (for GitOps/ESO workflows where secrets are
+managed outside Helm), otherwise falls back to the chart-managed secret name.
+Used by: deployment.yaml (ENTITLE_JSON_CONFIGURATION env var)
+*/}}
+{{- define "entitle-agent.agentSecretName" -}}
+{{- if .Values.agent.existingSecret -}}
+{{- .Values.agent.existingSecret -}}
+{{- else -}}
+{{- include "entitle-agent.fullname" . }}-secret
+{{- end -}}
+{{- end }}
+
+{{/*
+Image pull secret name — resolves to the appropriate imagePullSecret.
+Returns imagePullSecret.existingSecret if set (for GitOps/ESO workflows),
+otherwise falls back to the chart-managed docker-login secret name.
+Used by: deployment.yaml (imagePullSecrets)
+*/}}
+{{- define "entitle-agent.imagePullSecretName" -}}
+{{- if .Values.imagePullSecret.existingSecret -}}
+{{- .Values.imagePullSecret.existingSecret -}}
+{{- else -}}
+{{- include "entitle-agent.fullname" . }}-docker-login
+{{- end -}}
+{{- end }}
+
+{{/*
+Auto-extract imageCredentials from the agent token blob.
+The token is a base64-encoded JSON containing multiple fields, including
+imageCredentials (a dockerconfigjson for pulling the agent image).
+This helper decodes and extracts it so customers don't need to provide
+imageCredentials separately — just pass agent.token and the chart handles the rest.
+Used by: docker-login.yaml (conditional image pull secret creation)
+*/}}
+{{- define "entitle-agent.imageCredentialsFromToken" -}}
+{{- if .Values.agent.token -}}
+{{- (b64dec .Values.agent.token | fromJson).imageCredentials -}}
+{{- end -}}
+{{- end }}
+
