@@ -22,7 +22,10 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.2.1
+# Breaking change: defaults changed (MISSING_CUSTOMER_DATA removed, kmsType defaults
+# to kubernetes_secret_manager, token/imageCredentials no longer required).
+# See DOPS-434 for full changelog.
+version: 2.0.0
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to

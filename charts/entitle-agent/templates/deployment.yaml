@@ -3,12 +3,11 @@ kind: Deployment
 metadata:
   name: {{ include "entitle-agent.fullname" . }}
   labels:
-    app: {{ include "entitle-agent.fullname" . }}
+    {{- include "entitle-agent.labels" . | nindent 4 }}
     environment: {{ .Values.global.environment }}
     tags.datadoghq.com/env: {{ .Values.global.environment }}
     tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
-    tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" .}}
-    {{- include "entitle-agent.labels" . | nindent 4 }}
+    tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" . }}
 spec:
   replicas: {{ .Values.agent.replicas }}
   selector:
@@ -25,12 +24,11 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app: {{ include "entitle-agent.fullname" . }}
+        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
         environment: {{ .Values.global.environment }}
         tags.datadoghq.com/env: {{ .Values.global.environment }}
         tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
-        tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" .}}
-        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+        tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" . }}
         {{- if eq .Values.platform.mode "azure" }}
         azure.workload.identity/use: "true"
         {{- end }}
