@@ -1,8 +1,17 @@
+# =============================================================================
+# Lint and Test Charts
+# =============================================================================
+# Runs on every push to any branch:
+#   1. Lint changed charts (yamllint + Yamale schema validation)
+#   2. Spin up a kind cluster and run ct install (real Helm install smoke test)
+#
+# The install test uses charts/entitle-agent/ci/default-values.yaml which
+# exercises the existingSecret path — no real credentials needed.
+# =============================================================================
 name: Lint and Test Charts
 
 on:
   workflow_dispatch:
-
   push:
     branches: [ '**' ]
 
@@ -20,8 +29,7 @@ jobs:
         with:
           version: v3.12.1
 
-      # Python is required because `ct lint` runs Yamale (https://github.com/23andMe/Yamale) and
-      # yamllint (https://github.com/adrienverge/yamllint) which require Python
+      # Python is required because ct lint runs Yamale and yamllint
       - name: Set up Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
@@ -42,9 +50,20 @@ jobs:
         if: steps.list-changed.outputs.changed == 'true'
         run: ct lint --config ct.yaml
 
-#      - name: Create kind cluster
-#        uses: helm/kind-action@94729529f85113b88f4f819c17ce61382e6d8478 # v1.2.0
-#        if: steps.list-changed.outputs.changed == 'true'
+      # Spin up a kind cluster for install testing.
+      # ct install uses ci/*.yaml values files automatically.
+      - name: Create kind cluster
+        uses: helm/kind-action@94729529f85113b88f4f819c17ce61382e6d8478 # v1.2.0
+        if: steps.list-changed.outputs.changed == 'true'
 
-#      - name: Run chart-testing (install)
-#        run: ct install --config ct.yaml
+      - name: Add dependency chart repos
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          helm repo add datadog https://helm.datadoghq.com
+          helm repo update
+
+      # Install test: validates templates render correctly and Helm install succeeds.
+      # Pods will be Pending (existingSecret refs don't exist in kind) — that's expected.
+      - name: Run chart-testing (install)
+        if: steps.list-changed.outputs.changed == 'true'
+        run: ct install --config ct.yaml
