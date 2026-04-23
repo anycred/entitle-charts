@@ -62,7 +62,8 @@ spec:
         - name: ENTITLE_JSON_CONFIGURATION
           valueFrom:
             secretKeyRef:
-              name: {{ include "entitle-agent.fullname" . }}-secret
+              # Resolves to agent.existingSecret if set (GitOps/ESO), else chart-managed secret
+              name: {{ include "entitle-agent.agentSecretName" . }}
               key: ENTITLE_JSON_CONFIGURATION
               optional: false
         {{- if eq .Values.platform.mode "azure" }}

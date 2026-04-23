@@ -167,3 +167,17 @@ Node selector
   {{- end -}}
 {{- end -}}
 
+{{/*
+Agent secret name — resolves to the appropriate Secret for the agent token.
+Returns agent.existingSecret if set (for GitOps/ESO workflows where secrets are
+managed outside Helm), otherwise falls back to the chart-managed secret name.
+Used by: deployment.yaml (ENTITLE_JSON_CONFIGURATION env var)
+*/}}
+{{- define "entitle-agent.agentSecretName" -}}
+{{- if .Values.agent.existingSecret -}}
+{{- .Values.agent.existingSecret -}}
+{{- else -}}
+{{- include "entitle-agent.fullname" . }}-secret
+{{- end -}}
+{{- end }}
+

@@ -35,6 +35,19 @@ global:
   environment: "onprem"  # Used for metadata of deployment
 agent:
   token: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
+  # existingSecret -- Name of a pre-existing Kubernetes Secret containing the key
+  # ENTITLE_JSON_CONFIGURATION with value {"BASE64_CONFIGURATION":"<token-blob>"}.
+  # When set, agent.token is ignored and no Secret is created by the chart.
+  # Use this for GitOps workflows with External Secrets Operator, Sealed Secrets, etc.
+  # Example ExternalSecret that creates this:
+  #   apiVersion: external-secrets.io/v1beta1
+  #   kind: ExternalSecret
+  #   spec:
+  #     target: { name: entitle-agent-token }
+  #     data:
+  #       - secretKey: ENTITLE_JSON_CONFIGURATION
+  #         remoteRef: { key: /entitle/agent/token-json }
+  existingSecret: ""
   image:
     repository: ghcr.io/anycred/entitle-agent  # Docker image repository
     tag: latest  # Tag for docker image of agent
