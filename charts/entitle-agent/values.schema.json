@@ -2,26 +2,37 @@
   "$schema": "http://json-schema.org/schema#",
   "type": "object",
   "required": [
-    "imageCredentials",
     "platform",
     "agent",
-    "datadog",
     "kmsType"
   ],
   "properties": {
     "kmsType": {
       "type": "string",
+      "description": "Key Management Service for storing internal Entitle secrets",
       "enum": [
         "kubernetes_secret_manager",
         "aws_secret_manager",
         "gcp_secret_manager",
         "azure_secret_manager",
-        "hashicorp_vault",
-        "MISSING_CUSTOMER_DATA"
+        "hashicorp_vault"
       ]
     },
     "imageCredentials": {
-      "type": "string"
+      "type": "string",
+      "default": "",
+      "description": "Base64-encoded dockerconfigjson for the agent image registry. Optional — auto-extracted from agent.token if not set. Ignored when imagePullSecret.existingSecret is set."
+    },
+    "imagePullSecret": {
+      "type": "object",
+      "description": "Reference a pre-existing image pull secret instead of creating one from imageCredentials",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "default": "",
+          "description": "Name of an existing kubernetes.io/dockerconfigjson Secret for pulling the agent image"
+        }
+      }
     },
     "externalKmsParams": {
       "type": "object",
@@ -44,41 +55,50 @@
     "nodeSelector": {
       "type": "object"
     },
+    "affinity": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "global": {
+      "type": "object",
+      "description": "Global settings — previously outside 'properties' block and silently unvalidated (fixed in DOPS-569)",
+      "properties": {
+        "environment": {
+          "type": "string",
+          "default": "onprem"
+        }
+      }
+    },
     "platform": {
       "type": "object",
+      "required": ["mode"],
       "properties": {
         "mode": {
           "type": "string",
-          "default": "aws",
+          "default": "native",
+          "description": "Cloud platform mode. Determines service account annotations and KMS integration.",
           "enum": [
             "gcp",
             "aws",
             "azure",
-            "native",
-            "MISSING_CUSTOMER_DATA"
+            "native"
           ]
         }
       },
       "allOf": [
         {
           "if": {
-            "properties": {
-              "mode": {
-                "const": "aws"
-              }
-            }
+            "properties": { "mode": { "const": "aws" } }
           },
           "then": {
             "properties": {
               "aws": {
                 "type": "object",
-                "required": [
-                  "iamRole"
-                ],
+                "required": ["iamRole"],
                 "properties": {
-                  "iamRole": {
-                    "type": "string"
-                  }
+                  "iamRole": { "type": "string", "description": "IAM role ARN for IRSA" }
                 }
               }
             }
@@ -86,27 +106,16 @@
         },
         {
           "if": {
-            "properties": {
-              "mode": {
-                "const": "gcp"
-              }
-            }
+            "properties": { "mode": { "const": "gcp" } }
           },
           "then": {
             "properties": {
               "gke": {
                 "type": "object",
-                "required": [
-                  "serviceAccount",
-                  "projectId"
-                ],
+                "required": ["serviceAccount", "projectId"],
                 "properties": {
-                  "serviceAccount": {
-                    "type": "string"
-                  },
-                  "projectId": {
-                    "type": "string"
-                  }
+                  "serviceAccount": { "type": "string" },
+                  "projectId": { "type": "string" }
                 }
               }
             }
@@ -114,27 +123,16 @@
         },
         {
           "if": {
-            "properties": {
-              "mode": {
-                "const": "azure"
-              }
-            }
+            "properties": { "mode": { "const": "azure" } }
           },
           "then": {
             "properties": {
               "azure": {
                 "type": "object",
-                "required": [
-                  "clientId",
-                  "keyVaultName"
-                ],
+                "required": ["clientId", "keyVaultName"],
                 "properties": {
-                  "clientId": {
-                    "type": "string"
-                  },
-                  "keyVaultName": {
-                    "type": "string"
-                  }
+                  "clientId": { "type": "string" },
+                  "keyVaultName": { "type": "string" }
                 }
               }
             }
@@ -144,12 +142,19 @@
     },
     "agent": {
       "type": "object",
-      "required": [
-        "token",
-        "image",
-        "replicas"
-      ],
+      "required": ["image", "replicas"],
+      "description": "Agent configuration. Either token or existingSecret must be provided.",
       "properties": {
+        "token": {
+          "type": "string",
+          "default": "",
+          "description": "Base64-encoded agent token blob. Contains token, encryption key, credentials, and imageCredentials. Leave empty if using agent.existingSecret."
+        },
+        "existingSecret": {
+          "type": "string",
+          "default": "",
+          "description": "Name of an existing Secret with key ENTITLE_JSON_CONFIGURATION. When set, agent.token is ignored and no Secret is created by the chart."
+        },
         "replicas": {
           "type": "integer",
           "minimum": 1
@@ -160,72 +165,61 @@
             "requests": {
               "type": "object",
               "properties": {
-                "cpu": {
-                  "type": "string"
-                },
-                "memory": {
-                  "type": "string"
-                }
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
               }
             },
             "limits": {
               "type": "object",
               "properties": {
-                "cpu": {
-                  "type": "string"
-                },
-                "memory": {
-                  "type": "string"
-                }
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
               }
             }
           }
         },
         "image": {
           "type": "object",
+          "required": ["repository", "tag"],
           "properties": {
-            "repository": {
-              "type": "string",
-              "default": "ghcr.io/anycred/entitle-agent"
-            },
-            "tag": {
-              "type": "string",
-              "default": "master"
+            "repository": { "type": "string" },
+            "tag": { "type": "string", "default": "latest" }
+          }
+        },
+        "kafka": {
+          "type": "object",
+          "properties": {
+            "bootstrapServers": {
+              "type": ["string", "null"],
+              "default": null,
+              "description": "Kafka public bootstrap servers (optional)"
             }
-          },
-          "required": [
-            "repository",
-            "tag"
-          ]
+          }
         }
       }
-    }
-  },
-  "global": {
-    "type": "object",
-    "properties": {
-      "environment": {
-        "type": "string",
-        "default": "onprem"
-      }
-    }
-  },
-  "datadog": {
-    "type": "object",
-    "properties": {
-      "datadog": {
-        "type": "object",
-        "required": [
-          "apiKey",
-          "enabled"
-        ],
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "default": true
-          },
-          "apiKey": {
-            "type": "string"
+    },
+    "datadog": {
+      "type": "object",
+      "description": "Datadog subchart configuration — previously outside 'properties' block and silently unvalidated (fixed in DOPS-569)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Datadog Helm subchart"
+        },
+        "sidecarLogs": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Datadog sidecar container for log shipping"
+        },
+        "datadog": {
+          "type": "object",
+          "properties": {
+            "apiKey": {
+              "type": ["string", "null"],
+              "default": null,
+              "description": "Datadog API key (required when datadog.enabled is true)"
+            }
           }
         }
       }
