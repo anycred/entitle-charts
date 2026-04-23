@@ -3,6 +3,108 @@ Entitle Agent
 
 A Helm Chart for Entitle's Agent.
 
+## What's New in v2.0.0
+
+- **Simplified install:** Just pass `agent.token` — the chart auto-extracts `imageCredentials` from the token blob. No need to decode and pass it separately.
+- **GitOps / External Secrets support:** New `agent.existingSecret` and `imagePullSecret.existingSecret` values let you reference pre-existing Kubernetes Secrets instead of passing credentials at install time.
+- **Sane defaults:** `kmsType` defaults to `kubernetes_secret_manager`, `platform.mode` to `native`. No more `MISSING_CUSTOMER_DATA` placeholders.
+- **CI/CD:** Install smoke tests enabled, automated chart version bump on release.
+
+### Upgrade Notes
+
+If you're upgrading from v1.x:
+- Existing `helm install` commands with explicit `--set agent.token=...` and `--set imageCredentials=...` continue to work unchanged.
+- `imageCredentials` is now **optional** — it's auto-extracted from the token blob. You can remove it from your install commands.
+- If you relied on `MISSING_CUSTOMER_DATA` as a default value for `kmsType` or `platform.mode`, you'll need to explicitly set these values.
+
+## Installation Paths
+
+The chart supports three installation paths depending on your environment:
+
+### Path 1 — Simple Install (Recommended)
+
+Just pass the agent token blob. The chart auto-extracts `imageCredentials` from it.
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.token="${TOKEN}" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle-agent --create-namespace
+```
+
+> **Note:** In v1.x you had to pass `imageCredentials` separately. In v2.0.0 this is no longer needed — the chart decodes the token blob and extracts it automatically.
+
+### Path 2 — GitOps / External Secrets Operator
+
+For GitOps workflows where secrets are managed outside Helm (External Secrets Operator, Sealed Secrets, HashiCorp Vault, etc.). No credentials are passed as Helm values.
+
+**Step 1 — Create the agent token secret** (via your secrets pipeline):
+
+```yaml
+# Example: ExternalSecret pulling from AWS SSM Parameter Store
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: entitle-agent-token
+  namespace: entitle-agent
+spec:
+  secretStoreRef:
+    name: aws-ssm-parameter-store
+    kind: ClusterSecretStore
+  target:
+    name: entitle-agent-token
+  data:
+    - secretKey: ENTITLE_JSON_CONFIGURATION
+      remoteRef:
+        key: /entitle/agent/token-json
+```
+
+**Step 2 — Create the image pull secret** (via your secrets pipeline):
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: entitle-registry
+  namespace: entitle-agent
+spec:
+  secretStoreRef:
+    name: aws-ssm-parameter-store
+    kind: ClusterSecretStore
+  target:
+    name: entitle-registry
+    template:
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: '{{ .dockerconfig | toString }}'
+  data:
+    - secretKey: dockerconfig
+      remoteRef:
+        key: /entitle/agent/dockerconfigjson
+```
+
+**Step 3 — Install the chart with zero secrets in values:**
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.existingSecret="entitle-agent-token" \
+  --set imagePullSecret.existingSecret="entitle-registry" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle-agent --create-namespace
+```
+
+### Path 3 — Explicit Override (Backwards-Compatible)
+
+If you have existing automation that passes credentials explicitly, this still works:
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.token="${TOKEN}" \
+  --set imageCredentials="${IMAGE_CREDENTIALS}" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle-agent --create-namespace
+```
+
 ## Pre-Install
 
 ```shell
@@ -468,7 +570,7 @@ The following table lists the configurable parameters of the Entitle-agent chart
 
 | Parameter                        | Description                                                                                                                                                      | Default                           | Required input by user            |
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------------------------------|
-| `imageCredentials`               | Credentials you've received upon agent installation (Contact us for more info)                                                                                   | `null`                            | `true`                            |
+| `imageCredentials`               | Base64-encoded dockerconfigjson. **Optional in v2.0.0** — auto-extracted from `agent.token` if not set.                                                          | `null`                            | `false`                           |
 | `kmsType`                        | KMS for agent to save secrets. Take value from ["kubernetes_secret_manager", "aws_secret_manager","gcp_secret_manager","azure_secret_manager","hashicorp_vault"] | `null`                            | `true`                            |
 | `platform.mode`                  | Take values from: [aws,gcp,azure]                                                                                                                                | `"gcp"`                           | `true`                            |
 | `platform.aws.iamRole`           | IAM role for agent's service account annotations                                                                                                                 | `null`                            | `true` if `platform.mode="aws"`   |
@@ -487,7 +589,9 @@ The following table lists the configurable parameters of the Entitle-agent chart
 | `agent.resources.requests.memory`| Memory request for agent pod                                                                                                                                     | `"1Gi"`                           | `false`                           |
 | `agent.resources.limits.cpu`     | CPU limit for agent pod                                                                                                                                          | `"1000m"`                         | `false`                           |
 | `agent.resources.limits.memory`  | Memory limit for agent pod                                                                                                                                       | `"3Gi"`                           | `false`                           |
-| `agent.token`                    | Credentials you've received upon agent installation (Contact us for more info)                                                                                   | `null`                            | `true`                            |
+| `agent.token`                    | Credentials you've received upon agent installation (Contact us for more info). Leave empty if using `agent.existingSecret`.                                     | `null`                            | `true`                            |
+| `agent.existingSecret`           | Name of existing Secret with `ENTITLE_JSON_CONFIGURATION` key. When set, `agent.token` is ignored.                                                              | `""`                              | `false`                           |
+| `imagePullSecret.existingSecret` | Name of existing `kubernetes.io/dockerconfigjson` Secret for image pull. When set, `imageCredentials` is ignored.                                                | `""`                              | `false`                           |
 | `datadog.providers.gke.autopilot`| Whether to enable autopilot or not                                                                                                                               | `false`                           | `false`                           |
 | `datadog.datadog.apiKey`         | Datadog API key                                                                                                                                                  | `null`                            | `true`                            |
 | `datadog.datadog.tags`           | Datadog Tag - Put your company name (https://docs.datadoghq.com/tagging/)                                                                                        | `null`                            | `true`                            |
