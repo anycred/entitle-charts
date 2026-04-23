@@ -4,6 +4,13 @@
 
 imageCredentials: "MISSING_CUSTOMER_DATA"  # Credentials you've received upon agent installation (Contact us for more info)
 
+# imagePullSecret -- Alternative to imageCredentials: reference a pre-existing
+# kubernetes.io/dockerconfigjson Secret in the cluster for pulling the agent image.
+# Use this for GitOps workflows where secrets are managed by External Secrets Operator,
+# Sealed Secrets, or similar tools. When set, imageCredentials is ignored.
+imagePullSecret:
+  existingSecret: ""  # Name of existing Secret (e.g. "my-registry-credentials")
+
 platform:
   mode: "native"  # Cloud platform where Entitle is installed (Contact us for more info)
   aws:

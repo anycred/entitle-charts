@@ -141,8 +141,12 @@ spec:
             mountPath: /var/log/entitle-agent
             readOnly: true
       {{- end }}
+      {{- /* Use existingSecret if set, otherwise use chart-managed secret (only if credentials are available) */ -}}
+      {{- $imageCreds := .Values.imageCredentials | default (include "entitle-agent.imageCredentialsFromToken" .) -}}
+      {{- if or .Values.imagePullSecret.existingSecret $imageCreds }}
       imagePullSecrets:
-        - name: {{ include "entitle-agent.fullname" . }}-docker-login
+        - name: {{ include "entitle-agent.imagePullSecretName" . }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
