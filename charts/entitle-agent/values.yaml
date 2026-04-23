@@ -82,7 +82,7 @@ agent:
   existingSecret: ""
 
   image:
-    repository: beyondtrust-eng-docker-prod-local.jfrog.io/beyondtrust/entitle/entitle-agent
+    repository: ghcr.io/anycred/entitle-agent  # Docker image repository
     tag: latest            # Tag for the agent image; defaults to Chart.appVersion if empty
 
   replicas: 3              # Number of agent pods
@@ -116,6 +116,19 @@ datadog:
     enabled: false
 
   datadog:
+    # Overrides the kubelet check config to bypass the proxy.
+    # Without this, the kubelet check routes traffic through the DD proxy and fails.
+    # Only skip_proxy/use_proxy are set — kubelet_url and ssl_verify are auto-detected
+    # by the Datadog agent. Do NOT add kubelet_url with %%host%% here — it breaks
+    # auto-discovery ("AD: variable not supported by listener").
+    confd:
+      kubelet.yaml: |-
+        ad_identifiers:
+          # Built-in Datadog identifier for the kubelet check
+        instances:
+          - skip_proxy: true  # Bypass proxy — kubelet is a local node service, unreachable via proxy
+            use_proxy: false  # Same as skip_proxy, both set for cross-version compatibility
+
     apiKey: ""             # Datadog API key (required when datadog.enabled is true)
     tags: []
     #   - "key:value"
@@ -131,6 +144,7 @@ datadog:
     logs:
       enabled: true
       containerCollectAll: true
+      useHTTP: true        # Force log transport over HTTP (required for proxy compatibility)
 
     containerExclude: "name:.*"
     containerInclude: "name:entitle-agent.*"
@@ -141,3 +155,27 @@ datadog:
 
     kubelet:
       tlsVerify: true
+      use_proxy: false     # Prevent kubelet traffic from routing through the DD proxy
+      extra_config:
+        no_proxy:
+          - "kubernetes.default.svc"
+
+  # Proxy env vars from ConfigMap (created by parent chart when routing=v1)
+  # All proxy URLs are dynamically generated from token platform: http://agent.{platform}.entitle.io:8080
+  agents:
+    containers:
+      agent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true  # ConfigMap only created when proxy is enabled
+      processAgent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true
+      traceAgent:
+        envFrom:
+          - configMapRef:
+              name: entitle-agent-datadog-proxy
+              optional: true
