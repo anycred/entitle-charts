@@ -42,15 +42,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Service account annotations
+Service account name
 */}}
 {{- define "entitle-agent.serviceAccountName" -}}
 {{- default "entitle-agent-sa" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-
 {{/*
-Service account labels
+Service account labels — adds Azure workload identity label when platform is azure.
 */}}
 {{- define "entitle-agent.serviceAccountLabels" -}}
 {{- if eq .Values.platform.mode "azure" -}}
@@ -58,15 +57,16 @@ azure.workload.identity/use: "true"
 {{- end }}
 {{- end }}
 
-
 {{/*
-Service Accounts annotations
+Service account annotations — cloud-specific IAM annotations.
+Configures IRSA (AWS), Workload Identity (GCP), or Workload Identity (Azure)
+based on platform.mode.
 */}}
 {{- define "entitle-agent.serviceAccountAnnotations" -}}
 {{- if eq .Values.platform.mode "aws" -}}
 eks.amazonaws.com/role-arn: {{ .Values.platform.aws.iamRole }}
 {{- else if eq .Values.platform.mode "gcp" -}}
-iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" .Values.platform.gke.serviceAccount .Values.platform.gke.projectId | quote}}
+iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" .Values.platform.gcp.serviceAccount .Values.platform.gcp.projectId | quote}}
 {{- else if eq .Values.platform.mode "azure" -}}
 azure.workload.identity/client-id: {{ .Values.platform.azure.clientId }}
 azure.workload.identity/tenant-id: {{ .Values.platform.azure.tenantId }}
@@ -88,19 +88,9 @@ Fullname with image tag
 {{- printf "%s_%s" (include "entitle-agent.fullname" .) (include "entitle-agent.imageTag" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-
-{{/*
-Node selector
-*/}}
-{{- define "entitle-agent.nodeSelector" -}}
-{{- if .Values.nodeSelector }}
-{{- toYaml .Values.nodeSelector | nindent 8 }}
-{{- end }}
-{{- end }}
-{{/*
-*/}}
-
-{{/* Datadog proxy helper functions */}}
+{{/* ============================================================
+     Datadog proxy helper functions
+     ============================================================ */}}
 
 {{/* Gets token from agent.token */}}
 {{- define "entitle-agent.getToken" -}}
@@ -134,7 +124,7 @@ Node selector
 
 {{/* Resolves imageCredentials: --set imageCredentials takes priority, otherwise extract from token */}}
 {{- define "entitle-agent.imageCredentials" -}}
-  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
+  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "") -}}
     {{- .Values.imageCredentials -}}
   {{- else -}}
     {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "imageCredentials") -}}
@@ -167,3 +157,49 @@ Node selector
   {{- end -}}
 {{- end -}}
 
+{{/* ============================================================
+     Secret name helpers — support for existingSecret pattern
+     (GitOps / External Secrets Operator workflows)
+     ============================================================ */}}
+
+{{/*
+Agent secret name — resolves to the appropriate Secret for the agent token.
+Returns agent.existingSecret if set (for GitOps/ESO workflows where secrets are
+managed outside Helm), otherwise falls back to the chart-managed secret name.
+Used by: deployment.yaml (ENTITLE_JSON_CONFIGURATION env var)
+*/}}
+{{- define "entitle-agent.agentSecretName" -}}
+{{- if .Values.agent.existingSecret -}}
+{{- .Values.agent.existingSecret -}}
+{{- else -}}
+{{- include "entitle-agent.fullname" . }}-secret
+{{- end -}}
+{{- end }}
+
+{{/*
+Image pull secret name — resolves to the appropriate imagePullSecret.
+Returns imagePullSecret.existingSecret if set (for GitOps/ESO workflows),
+otherwise falls back to the chart-managed docker-login secret name.
+Used by: deployment.yaml (imagePullSecrets)
+*/}}
+{{- define "entitle-agent.imagePullSecretName" -}}
+{{- if .Values.imagePullSecret.existingSecret -}}
+{{- .Values.imagePullSecret.existingSecret -}}
+{{- else -}}
+{{- include "entitle-agent.fullname" . }}-docker-login
+{{- end -}}
+{{- end }}
+
+{{/*
+Auto-extract imageCredentials from the agent token blob.
+The token is a base64-encoded JSON containing multiple fields, including
+imageCredentials (a dockerconfigjson for pulling the agent image).
+This helper decodes and extracts it so customers don't need to provide
+imageCredentials separately — just pass agent.token and the chart handles the rest.
+Used by: docker-login.yaml (conditional image pull secret creation)
+*/}}
+{{- define "entitle-agent.imageCredentialsFromToken" -}}
+{{- if .Values.agent.token -}}
+{{- (b64dec .Values.agent.token | fromJson).imageCredentials -}}
+{{- end -}}
+{{- end }}
