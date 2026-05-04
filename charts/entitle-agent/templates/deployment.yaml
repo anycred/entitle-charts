@@ -18,6 +18,7 @@ spec:
     metadata:
       annotations:
         checksum/docker-login: {{ include (print $.Template.BasePath "/docker-login.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
         checksum/datadog-config: {{ include (print $.Template.BasePath "/datadog-configmap.yaml") . | sha256sum }}
         ad.datadoghq.com/{{ include "entitle-agent.fullname" . }}.logs: '[{"source": "{{ include "entitle-agent.fullname" . }}"}]'
       {{- with .Values.podAnnotations }}
@@ -30,6 +31,9 @@ spec:
         tags.datadoghq.com/env: {{ .Values.global.environment }}
         tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
         tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" . }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- if eq .Values.platform.mode "azure" }}
         azure.workload.identity/use: "true"
         {{- end }}
@@ -61,9 +65,8 @@ spec:
         - name: ENTITLE_JSON_CONFIGURATION
           valueFrom:
             secretKeyRef:
-              # Uses agent.existingSecret if set, otherwise the chart-managed secret
               name: {{ include "entitle-agent.agentSecretName" . }}
-              key: ENTITLE_JSON_CONFIGURATION
+              key: {{ include "entitle-agent.agentSecretKey" . }}
               optional: false
         {{- if eq .Values.platform.mode "azure" }}
         - name: AZURE_KEY_VAULT_NAME
@@ -117,7 +120,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: {{ include "entitle-agent.fullname" . }}-datadog-secret
-                key: DD_API_KEY
+                key: api-key
           - name: DD_TAGS
             value: {{.Values.datadog.datadog.tags | quote}}
           - name: DD_HOSTNAME
@@ -142,7 +145,7 @@ spec:
             readOnly: true
       {{- end }}
       {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
-      {{- if or .Values.imagePullSecret.existingSecret $imageCreds }}
+      {{- if or .Values.imagePullSecret.name $imageCreds }}
       imagePullSecrets:
         - name: {{ include "entitle-agent.imagePullSecretName" . }}
       {{- end }}

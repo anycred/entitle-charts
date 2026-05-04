@@ -5,23 +5,37 @@
 # Chart repo: https://anycred.github.io/entitle-charts/
 # =============================================================================
 
+# -- nameOverride overrides the chart name used in resource names.
+nameOverride: ""
+# -- fullnameOverride fully overrides the generated resource names.
+fullnameOverride: ""
+
 # -- imageCredentials: Base64-encoded dockerconfigjson for the agent image registry.
 # Typically auto-extracted from agent.token (the token blob contains this field).
 # Only set explicitly if you need to override the registry credentials in the token.
-# Ignored when imagePullSecret.existingSecret is set.
+# Ignored when imagePullSecret.name is set.
 imageCredentials: ""
 
-# -- imagePullSecret: Alternative to imageCredentials — reference a pre-existing
-# kubernetes.io/dockerconfigjson Secret for pulling the agent image.
-# Use this for GitOps workflows where secrets are managed by External Secrets Operator,
-# Sealed Secrets, or similar tools.
+# -- imagePullSecret: Reference a pre-existing kubernetes.io/dockerconfigjson Secret
+# for pulling the agent image. Use this when secrets are managed outside Helm.
 imagePullSecret:
-  existingSecret: ""  # Name of existing Secret (e.g. "my-registry-credentials")
+  # -- name of the existing Secret (e.g. "my-registry-credentials").
+  # When set, imageCredentials is ignored and no docker-login Secret is created.
+  name: ""
+
+# -- serviceAccount configuration for the agent pods.
+serviceAccount:
+  # -- create controls whether a ServiceAccount is created by the chart.
+  create: true
+  # -- name overrides the ServiceAccount name. Default: "<fullname>-sa".
+  name: ""
+  # -- annotations to add to the ServiceAccount (merged with cloud platform annotations).
+  annotations: {}
 
 # -- platform: Cloud platform configuration.
 # Determines service account annotations for IRSA (AWS), Workload Identity (GCP/Azure).
 platform:
-  # mode -- Cloud platform where the agent is deployed.
+  # -- mode: Cloud platform where the agent is deployed.
   # Valid values: native, aws, gcp, azure
   mode: "native"
   aws:
@@ -34,8 +48,9 @@ platform:
     tenantId: ""          # Azure AD tenant ID
     keyVaultName: ""      # Azure Key Vault name for storing agent secrets
 
-# -- Pod scheduling configuration
+# -- Pod scheduling and metadata
 podAnnotations: {}        # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podLabels: {}             # Additional labels for agent pods
 nodeSelector: {}          # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 affinity: {}              # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
 tolerations: []           # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
@@ -62,24 +77,33 @@ agent:
   # -- token: Base64-encoded agent token blob from Entitle Org Settings.
   # Contains: token, encryptionKey, username, password, imageCredentials, companyId, etc.
   # The chart auto-extracts imageCredentials from this blob — no need to set it separately.
-  # Leave empty if using agent.existingSecret instead.
+  # Leave empty if using agent.secretRef instead.
   token: ""
 
-  # -- existingSecret: Name of a pre-existing Kubernetes Secret containing the key
-  # ENTITLE_JSON_CONFIGURATION with value {"BASE64_CONFIGURATION":"<token-blob>"}.
-  # When set, agent.token is ignored and no Secret is created by the chart.
-  # Use this for GitOps workflows with External Secrets Operator, Sealed Secrets, etc.
+  # -- secretRef: Reference a pre-existing Kubernetes Secret containing the agent
+  # configuration. When secretRef.name is set, agent.token is ignored and no Secret
+  # is created by the chart. Use this when secrets are managed outside Helm.
   #
-  # Example ExternalSecret (external-secrets.io):
-  #   apiVersion: external-secrets.io/v1beta1
-  #   kind: ExternalSecret
-  #   spec:
-  #     secretStoreRef: { name: aws-ssm-parameter-store, kind: ClusterSecretStore }
-  #     target: { name: entitle-agent-token }
-  #     data:
-  #       - secretKey: ENTITLE_JSON_CONFIGURATION
-  #         remoteRef: { key: /entitle/agent/token-json }
-  existingSecret: ""
+  # The Secret must contain a key (default: ENTITLE_JSON_CONFIGURATION) with the value:
+  #   {"BASE64_CONFIGURATION":"<token-blob>"}
+  #
+  # Example — create the Secret manually:
+  #   kubectl create secret generic entitle-agent-token \
+  #     --from-literal=ENTITLE_JSON_CONFIGURATION='{"BASE64_CONFIGURATION":"<your-token>"}' \
+  #     -n entitle
+  #
+  # Or as YAML:
+  #   apiVersion: v1
+  #   kind: Secret
+  #   metadata:
+  #     name: entitle-agent-token
+  #   stringData:
+  #     ENTITLE_JSON_CONFIGURATION: '{"BASE64_CONFIGURATION":"<your-token>"}'
+  #
+  # Works with any secret management tool (External Secrets Operator, Sealed Secrets, etc.)
+  secretRef:
+    name: ""                              # Name of the existing Secret
+    key: "ENTITLE_JSON_CONFIGURATION"     # Key within the Secret (override if your secret uses a different key)
 
   image:
     repository: ghcr.io/anycred/entitle-agent  # Docker image repository

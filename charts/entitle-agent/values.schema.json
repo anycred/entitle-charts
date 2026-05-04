@@ -7,6 +7,16 @@
     "kmsType"
   ],
   "properties": {
+    "nameOverride": {
+      "type": "string",
+      "default": "",
+      "description": "Override the chart name used in resource names"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "default": "",
+      "description": "Fully override the generated resource names"
+    },
     "kmsType": {
       "type": "string",
       "description": "Key Management Service for storing internal Entitle secrets",
@@ -21,16 +31,36 @@
     "imageCredentials": {
       "type": "string",
       "default": "",
-      "description": "Base64-encoded dockerconfigjson for the agent image registry. Optional — auto-extracted from agent.token if not set. Ignored when imagePullSecret.existingSecret is set."
+      "description": "Base64-encoded dockerconfigjson for the agent image registry. Optional — auto-extracted from agent.token if not set."
     },
     "imagePullSecret": {
       "type": "object",
-      "description": "Reference a pre-existing image pull secret instead of creating one from imageCredentials",
+      "description": "Reference a pre-existing image pull Secret",
       "properties": {
-        "existingSecret": {
+        "name": {
           "type": "string",
           "default": "",
-          "description": "Name of an existing kubernetes.io/dockerconfigjson Secret for pulling the agent image"
+          "description": "Name of an existing kubernetes.io/dockerconfigjson Secret"
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "description": "ServiceAccount configuration",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to create a ServiceAccount"
+        },
+        "name": {
+          "type": "string",
+          "default": "",
+          "description": "Override the ServiceAccount name"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Additional annotations for the ServiceAccount"
         }
       }
     },
@@ -51,6 +81,10 @@
     },
     "podAnnotations": {
       "type": "object"
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Additional labels for agent pods"
     },
     "nodeSelector": {
       "type": "object"
@@ -142,17 +176,28 @@
     "agent": {
       "type": "object",
       "required": ["image", "replicas"],
-      "description": "Agent configuration. Either token or existingSecret must be provided.",
+      "description": "Agent configuration. Either token or secretRef.name must be provided.",
       "properties": {
         "token": {
           "type": "string",
           "default": "",
-          "description": "Base64-encoded agent token blob. Contains token, encryption key, credentials, and imageCredentials. Leave empty if using agent.existingSecret."
+          "description": "Base64-encoded agent token blob. Leave empty if using agent.secretRef."
         },
-        "existingSecret": {
-          "type": "string",
-          "default": "",
-          "description": "Name of an existing Secret with key ENTITLE_JSON_CONFIGURATION. When set, agent.token is ignored and no Secret is created by the chart."
+        "secretRef": {
+          "type": "object",
+          "description": "Reference a pre-existing Secret containing the agent configuration.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "default": "",
+              "description": "Name of the existing Secret. When set, agent.token is ignored."
+            },
+            "key": {
+              "type": "string",
+              "default": "ENTITLE_JSON_CONFIGURATION",
+              "description": "Key within the Secret that holds the agent configuration JSON."
+            }
+          }
         },
         "replicas": {
           "type": "integer",

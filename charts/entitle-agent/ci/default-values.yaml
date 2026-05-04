@@ -2,7 +2,7 @@
 # Chart Testing (ct install) — minimal values for install smoke test
 # =============================================================================
 # This file is automatically used by `ct install` to validate that the chart
-# installs successfully in a kind cluster. It uses the existingSecret path
+# installs successfully in a kind cluster. It uses the secretRef path
 # so no real credentials are needed.
 #
 # The pod will not start (the referenced secrets don't exist in the test cluster),
@@ -16,7 +16,8 @@ platform:
 
 agent:
   # Reference a non-existent secret — install succeeds, pod stays Pending (expected)
-  existingSecret: entitle-agent-secret-ci
+  secretRef:
+    name: entitle-agent-secret-ci
   image:
     repository: busybox   # Lightweight image for CI — agent won't actually run
     tag: latest
@@ -31,9 +32,9 @@ agent:
 
 # Reference a non-existent image pull secret — install still succeeds
 imagePullSecret:
-  existingSecret: entitle-registry-ci
+  name: entitle-registry-ci
 
-# Disable Datadog entirely for CI — avoids pulling the subchart dependency
+# Enable Datadog for CI
 datadog:
   enabled: true
   sidecarLogs: false
