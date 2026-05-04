@@ -103,9 +103,9 @@ Fullname with image tag
      Datadog proxy helper functions
      ============================================================ */}}
 
-{{/* Gets token from agent.token */}}
+{{/* Gets token from agent.token (returns empty if MISSING_CUSTOMER_DATA placeholder) */}}
 {{- define "entitle-agent.getToken" -}}
-  {{- if and $.Values.agent $.Values.agent.token -}}
+  {{- if and $.Values.agent $.Values.agent.token (ne $.Values.agent.token "MISSING_CUSTOMER_DATA") -}}
     {{- $.Values.agent.token -}}
   {{- end -}}
 {{- end -}}
@@ -135,7 +135,7 @@ Fullname with image tag
 
 {{/* Resolves imageCredentials: --set imageCredentials takes priority, otherwise extract from token */}}
 {{- define "entitle-agent.imageCredentials" -}}
-  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "") -}}
+  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "") (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
     {{- .Values.imageCredentials -}}
   {{- else -}}
     {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "imageCredentials") -}}

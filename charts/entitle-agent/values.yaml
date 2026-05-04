@@ -14,7 +14,7 @@ fullnameOverride: ""
 # Typically auto-extracted from agent.token (the token blob contains this field).
 # Only set explicitly if you need to override the registry credentials in the token.
 # Ignored when imagePullSecret.name is set.
-imageCredentials: ""
+imageCredentials: "MISSING_CUSTOMER_DATA"
 
 # -- imagePullSecret: Reference a pre-existing kubernetes.io/dockerconfigjson Secret
 # for pulling the agent image. Use this when secrets are managed outside Helm.
@@ -78,7 +78,7 @@ agent:
   # Contains: token, encryptionKey, username, password, imageCredentials, companyId, etc.
   # The chart auto-extracts imageCredentials from this blob — no need to set it separately.
   # Leave empty if using agent.secretRef instead.
-  token: ""
+  token: "MISSING_CUSTOMER_DATA"
 
   # -- secretRef: Reference a pre-existing Kubernetes Secret containing the agent
   # configuration. When secretRef.name is set, agent.token is ignored and no Secret
