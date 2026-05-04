@@ -145,7 +145,7 @@ spec:
             readOnly: true
       {{- end }}
       {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
-      {{- if or .Values.imagePullSecret.name $imageCreds }}
+      {{- if or .Values.imagePullSecret.name $imageCreds .Values.agent.secretRef.name }}
       imagePullSecrets:
         - name: {{ include "entitle-agent.imagePullSecretName" . }}
       {{- end }}
