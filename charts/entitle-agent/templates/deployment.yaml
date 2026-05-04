@@ -141,7 +141,7 @@ spec:
             mountPath: /var/log/entitle-agent
             readOnly: true
       {{- end }}
-      {{- $imageCreds := .Values.imageCredentials | default (include "entitle-agent.imageCredentialsFromToken" .) -}}
+      {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
       {{- if or .Values.imagePullSecret.existingSecret $imageCreds }}
       imagePullSecrets:
         - name: {{ include "entitle-agent.imagePullSecretName" . }}

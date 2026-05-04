@@ -190,16 +190,3 @@ Used by: deployment.yaml (imagePullSecrets)
 {{- end -}}
 {{- end }}
 
-{{/*
-Auto-extract imageCredentials from the agent token blob.
-The token is a base64-encoded JSON containing multiple fields, including
-imageCredentials (a dockerconfigjson for pulling the agent image).
-This helper decodes and extracts it so customers don't need to provide
-imageCredentials separately — just pass agent.token and the chart handles the rest.
-Used by: docker-login.yaml (conditional image pull secret creation)
-*/}}
-{{- define "entitle-agent.imageCredentialsFromToken" -}}
-{{- if .Values.agent.token -}}
-{{- (b64dec .Values.agent.token | fromJson).imageCredentials -}}
-{{- end -}}
-{{- end }}

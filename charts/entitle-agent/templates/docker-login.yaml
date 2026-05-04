@@ -7,7 +7,7 @@ Priority chain for image pull credentials:
 If none of the above are set, no docker-login Secret is created and imagePullSecrets
 is omitted from the Deployment (useful when nodes already have registry access).
 */}}
-{{- $imageCreds := .Values.imageCredentials | default (include "entitle-agent.imageCredentialsFromToken" .) -}}
+{{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
 {{- if $imageCreds }}
 apiVersion: v1
 kind: Secret

@@ -35,5 +35,5 @@ imagePullSecret:
 
 # Disable Datadog entirely for CI — avoids pulling the subchart dependency
 datadog:
-  enabled: false
+  enabled: true
   sidecarLogs: false
