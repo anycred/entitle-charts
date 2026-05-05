@@ -1,0 +1,30 @@
+# =============================================================================
+# Integration test: Token path (Scenario 1)
+# The token is injected via --set agent.token from the ENTITLE_AGENT_QA_TOKEN secret.
+# =============================================================================
+
+kmsType: kubernetes_secret_manager
+
+platform:
+  mode: native
+
+agent:
+  # token injected via --set at install time
+  image:
+    repository: ghcr.io/anycred/entitle-agent-qa
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+datadog:
+  enabled: false
+  sidecarLogs: false
+
+global:
+  environment: qa
