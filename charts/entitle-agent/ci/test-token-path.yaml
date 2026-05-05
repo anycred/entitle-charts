@@ -11,7 +11,7 @@ platform:
 agent:
   # token injected via --set at install time
   image:
-    repository: ghcr.io/anycred/entitle-agent
+    repository: ghcr.io/anycred/entitle-agent-qa
     tag: latest
   replicas: 1
   resources:
