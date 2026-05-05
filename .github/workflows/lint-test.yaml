@@ -4,7 +4,7 @@
 # Runs on every push to any branch:
 #   1. Lint changed charts (yamllint + Yamale schema validation)
 #   2. Smoke test: ct install with minimal values (no real credentials)
-#   3. Integration tests: 3 scenarios with real QA token (requires secret)
+#   3. Integration tests: 3 scenarios with real agent token (requires secret)
 # =============================================================================
 name: Lint and Test Charts
 
@@ -66,8 +66,8 @@ jobs:
         run: ct install --config ct.yaml
 
   # ---------------------------------------------------------------------------
-  # Integration tests — require ENTITLE_AGENT_QA_TOKEN secret
-  # Tests all 3 install scenarios with a real QA token against a kind cluster.
+  # Integration tests — require ENTITLE_AGENT_TOKEN secret
+  # Tests all 3 install scenarios with a real agent token against a kind cluster.
   # Skipped on forks or when the secret is not available.
   # ---------------------------------------------------------------------------
   integration-test:
@@ -97,18 +97,18 @@ jobs:
           helm repo update
           helm dependency build charts/entitle-agent
 
-      - name: Check for QA token secret
+      - name: Check for agent token secret
         id: check-secret
         run: |
-          if [ -n "${{ secrets.ENTITLE_AGENT_QA_TOKEN }}" ]; then
+          if [ -n "${{ secrets.ENTITLE_AGENT_TOKEN }}" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::ENTITLE_AGENT_QA_TOKEN secret not set — skipping integration tests"
+            echo "::warning::ENTITLE_AGENT_TOKEN secret not set — skipping integration tests"
           fi
 
       - name: Run integration tests
         if: steps.check-secret.outputs.available == 'true'
         env:
-          ENTITLE_AGENT_QA_TOKEN: ${{ secrets.ENTITLE_AGENT_QA_TOKEN }}
+          ENTITLE_AGENT_TOKEN: ${{ secrets.ENTITLE_AGENT_TOKEN }}
         run: bash charts/entitle-agent/ci/integration-test.sh

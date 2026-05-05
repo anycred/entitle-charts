@@ -7,7 +7,7 @@
 #   2. SecretRef only — hook extracts imageCredentials + datadogApiKey
 #   3. SecretRef + own registry — hook extracts datadogApiKey only
 #
-# Required env var: ENTITLE_AGENT_QA_TOKEN (base64-encoded token blob)
+# Required env var: ENTITLE_AGENT_TOKEN (base64-encoded token blob)
 # =============================================================================
 
 set -euo pipefail
@@ -94,8 +94,8 @@ check_deployment_image_pull_secret() {
 
 # ---------- Pre-flight ----------
 
-if [ -z "${ENTITLE_AGENT_QA_TOKEN:-}" ]; then
-  echo "ERROR: ENTITLE_AGENT_QA_TOKEN env var is required"
+if [ -z "${ENTITLE_AGENT_TOKEN:-}" ]; then
+  echo "ERROR: ENTITLE_AGENT_TOKEN env var is required"
   exit 1
 fi
 
@@ -110,7 +110,7 @@ kubectl create namespace "$NAMESPACE"
 
 helm install "$RELEASE" "./$CHART_DIR" \
   -f "${CI_DIR}/test-token-path.yaml" \
-  --set "agent.token=${ENTITLE_AGENT_QA_TOKEN}" \
+  --set "agent.token=${ENTITLE_AGENT_TOKEN}" \
   -n "$NAMESPACE" --wait=false
 
 # Verify secrets
@@ -151,7 +151,7 @@ kubectl create namespace "$NAMESPACE"
 
 # Create the pre-existing token secret
 kubectl create secret generic entitle-agent-ci-token \
-  --from-literal=ENTITLE_JSON_CONFIGURATION="{\"BASE64_CONFIGURATION\":\"${ENTITLE_AGENT_QA_TOKEN}\"}" \
+  --from-literal=ENTITLE_JSON_CONFIGURATION="{\"BASE64_CONFIGURATION\":\"${ENTITLE_AGENT_TOKEN}\"}" \
   -n "$NAMESPACE"
 
 helm install "$RELEASE" "./$CHART_DIR" \
@@ -198,11 +198,11 @@ kubectl create namespace "$NAMESPACE"
 
 # Create the pre-existing token secret
 kubectl create secret generic entitle-agent-ci-token \
-  --from-literal=ENTITLE_JSON_CONFIGURATION="{\"BASE64_CONFIGURATION\":\"${ENTITLE_AGENT_QA_TOKEN}\"}" \
+  --from-literal=ENTITLE_JSON_CONFIGURATION="{\"BASE64_CONFIGURATION\":\"${ENTITLE_AGENT_TOKEN}\"}" \
   -n "$NAMESPACE"
 
 # Create the pre-existing registry secret (extract imageCredentials from token)
-IMAGE_CREDS=$(echo "${ENTITLE_AGENT_QA_TOKEN}" | base64 -d | python3 -c "import sys,json,base64; print(base64.b64decode(json.load(sys.stdin)['imageCredentials']).decode())")
+IMAGE_CREDS=$(echo "${ENTITLE_AGENT_TOKEN}" | base64 -d | python3 -c "import sys,json,base64; print(base64.b64decode(json.load(sys.stdin)['imageCredentials']).decode())")
 kubectl create secret docker-registry entitle-agent-ci-registry \
   --from-file=.dockerconfigjson=<(echo "$IMAGE_CREDS") \
   -n "$NAMESPACE"
