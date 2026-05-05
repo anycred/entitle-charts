@@ -6,96 +6,82 @@ A Helm Chart for Entitle's Agent.
 ## What's New in v2.0.0
 
 - **Simplified install:** Just pass `agent.token` — the chart auto-extracts `imageCredentials` from the token blob. No need to decode and pass it separately.
-- **GitOps / External Secrets support:** New `agent.existingSecret` and `imagePullSecret.existingSecret` values let you reference pre-existing Kubernetes Secrets instead of passing credentials at install time.
-- **Sane defaults:** `kmsType` defaults to `kubernetes_secret_manager`, `platform.mode` to `native`. No more `MISSING_CUSTOMER_DATA` placeholders.
+- **Pre-existing Secret support:** New `agent.secretRef` lets you reference a pre-existing Kubernetes Secret instead of passing credentials at install time. A pre-install hook automatically extracts image pull credentials and Datadog API key from the token — single-value install.
+- **Sane defaults:** `kmsType` defaults to `kubernetes_secret_manager`, `platform.mode` to `native`.
 - **GCP field rename:** `platform.gke` renamed to `platform.gcp` for consistency.
-- **CI/CD:** Install smoke tests enabled, automated chart version bump on release.
+- **Standard Helm patterns:** `nameOverride`, `fullnameOverride`, `serviceAccount` config, `podLabels`.
+- **CI/CD:** Integration tests for all install scenarios, automated chart version bump on release.
 
 ### Upgrade Notes
 
 If you're upgrading from v1.x:
 - Existing `helm install` commands with explicit `--set agent.token=...` and `--set imageCredentials=...` continue to work unchanged.
 - `imageCredentials` is now **optional** — it's auto-extracted from the token blob. You can remove it from your install commands.
-- If you relied on `MISSING_CUSTOMER_DATA` as a default value for `kmsType` or `platform.mode`, you'll need to explicitly set these values.
 - **GCP users:** `platform.gke.serviceAccount` and `platform.gke.projectId` are now `platform.gcp.serviceAccount` and `platform.gcp.projectId`.
 
-## Installation Paths
+## Installation Scenarios
 
-The chart supports three installation paths depending on your environment:
+The chart supports four installation scenarios. **The minimum required is 1 value.**
 
-### Path 1 — Simple Install (Recommended)
+### Scenario 1 — Simple Install (Recommended)
 
-Just pass the agent token blob. The chart auto-extracts `imageCredentials` from it.
+Just pass the agent token blob. The chart auto-extracts `imageCredentials` and `datadogApiKey` from it.
 
 ```bash
 helm upgrade --install entitle-agent entitle/entitle-agent \
   --set agent.token="${TOKEN}" \
   --set kmsType="kubernetes_secret_manager" \
-  -n entitle-agent --create-namespace
+  -n entitle --create-namespace
 ```
 
-> **Note:** In v1.x you had to pass `imageCredentials` separately. In v2.0.0 this is no longer needed — the chart decodes the token blob and extracts it automatically.
+### Scenario 2 — Pre-existing Secret (Single Value)
 
-### Path 2 — GitOps / External Secrets Operator
+Reference a pre-existing Kubernetes Secret. A pre-install hook automatically extracts `imageCredentials` and `datadogApiKey` from the token inside the Secret — no additional configuration needed.
 
-For GitOps workflows where secrets are managed outside Helm (External Secrets Operator, Sealed Secrets, HashiCorp Vault, etc.). No credentials are passed as Helm values.
+**Step 1 — Create the Secret:**
 
-**Step 1 — Create the agent token secret** (via your secrets pipeline):
+```bash
+kubectl create secret generic entitle-agent-token \
+  --from-literal=ENTITLE_JSON_CONFIGURATION='{"BASE64_CONFIGURATION":"<your-token>"}' \
+  -n entitle
+```
+
+Or as YAML:
 
 ```yaml
-# Example: ExternalSecret pulling from AWS SSM Parameter Store
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
+apiVersion: v1
+kind: Secret
 metadata:
   name: entitle-agent-token
-  namespace: entitle-agent
-spec:
-  secretStoreRef:
-    name: aws-ssm-parameter-store
-    kind: ClusterSecretStore
-  target:
-    name: entitle-agent-token
-  data:
-    - secretKey: ENTITLE_JSON_CONFIGURATION
-      remoteRef:
-        key: /entitle/agent/token-json
+  namespace: entitle
+stringData:
+  ENTITLE_JSON_CONFIGURATION: '{"BASE64_CONFIGURATION":"<your-token>"}'
 ```
 
-**Step 2 — Create the image pull secret** (via your secrets pipeline):
+This works with any secret management tool — External Secrets Operator, Sealed Secrets, HashiCorp Vault, or plain `kubectl`.
 
-```yaml
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: entitle-registry
-  namespace: entitle-agent
-spec:
-  secretStoreRef:
-    name: aws-ssm-parameter-store
-    kind: ClusterSecretStore
-  target:
-    name: entitle-registry
-    template:
-      type: kubernetes.io/dockerconfigjson
-      data:
-        .dockerconfigjson: '{{ .dockerconfig | toString }}'
-  data:
-    - secretKey: dockerconfig
-      remoteRef:
-        key: /entitle/agent/dockerconfigjson
-```
-
-**Step 3 — Install the chart with zero secrets in values:**
+**Step 2 — Install the chart:**
 
 ```bash
 helm upgrade --install entitle-agent entitle/entitle-agent \
-  --set agent.existingSecret="entitle-agent-token" \
-  --set imagePullSecret.existingSecret="entitle-registry" \
+  --set agent.secretRef.name="entitle-agent-token" \
   --set kmsType="kubernetes_secret_manager" \
-  -n entitle-agent --create-namespace
+  -n entitle --create-namespace
 ```
 
-### Path 3 — Explicit Override (Backwards-Compatible)
+### Scenario 3 — Pre-existing Secret + Own Registry
+
+If you manage your own image pull secret separately:
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.secretRef.name="entitle-agent-token" \
+  --set imagePullSecret.name="my-registry-secret" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle --create-namespace
+```
+
+### Scenario 4 — Explicit Override (Backwards-Compatible)
 
 If you have existing automation that passes credentials explicitly, this still works:
 
@@ -104,7 +90,7 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   --set agent.token="${TOKEN}" \
   --set imageCredentials="${IMAGE_CREDENTIALS}" \
   --set kmsType="kubernetes_secret_manager" \
-  -n entitle-agent --create-namespace
+  -n entitle --create-namespace
 ```
 
 ## Pre-Install
@@ -529,10 +515,15 @@ If you don't have a managed identity created and assigned to your pod, perform t
 
 The following table lists the configurable parameters of the Entitle-agent chart and their default values.
 
-| Parameter                        | Description                                                                                                                                                      | Default                           | Required input by user            |
+| Parameter                        | Description                                                                                                                                                      | Default                           | Required                          |
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------------------------------|
-| `imageCredentials`               | Base64-encoded dockerconfigjson. **Optional in v2.0.0** — auto-extracted from `agent.token` if not set.                                                          | `""`                              | `false`                           |
-| `imagePullSecret.existingSecret` | Name of existing `kubernetes.io/dockerconfigjson` Secret for image pull. When set, `imageCredentials` is ignored.                                                | `""`                              | `false`                           |
+| `nameOverride`                   | Override the chart name used in resource names                                                                                                                   | `""`                              | `false`                           |
+| `fullnameOverride`               | Fully override the generated resource names                                                                                                                      | `""`                              | `false`                           |
+| `imageCredentials`               | Base64-encoded dockerconfigjson. **Optional** — auto-extracted from `agent.token` if not set.                                                                    | `"MISSING_CUSTOMER_DATA"`         | `false`                           |
+| `imagePullSecret.name`           | Name of existing `kubernetes.io/dockerconfigjson` Secret for image pull.                                                                                         | `""`                              | `false`                           |
+| `serviceAccount.create`          | Whether to create a ServiceAccount                                                                                                                               | `true`                            | `false`                           |
+| `serviceAccount.name`            | Override the ServiceAccount name                                                                                                                                 | `""`                              | `false`                           |
+| `serviceAccount.annotations`     | Additional annotations for the ServiceAccount                                                                                                                    | `{}`                              | `false`                           |
 | `kmsType`                        | KMS for agent to save secrets. Values: `kubernetes_secret_manager`, `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`        | `"kubernetes_secret_manager"`     | `true`                            |
 | `platform.mode`                  | Cloud platform. Values: `native`, `aws`, `gcp`, `azure`                                                                                                         | `"native"`                        | `true`                            |
 | `platform.aws.iamRole`           | IAM role ARN for agent's IRSA service account annotation                                                                                                         | `""`                              | `true` if `platform.mode="aws"`   |
@@ -542,12 +533,14 @@ The following table lists the configurable parameters of the Entitle-agent chart
 | `platform.azure.tenantId`        | Azure AD tenant ID for workload identity                                                                                                                         | `""`                              | `true` if `platform.mode="azure"` |
 | `platform.azure.keyVaultName`    | Azure Key Vault name for storing agent secrets                                                                                                                   | `""`                              | `true` if `platform.mode="azure"` |
 | `podAnnotations`                 | Additional annotations for agent pods                                                                                                                            | `{}`                              | `false`                           |
+| `podLabels`                      | Additional labels for agent pods                                                                                                                                 | `{}`                              | `false`                           |
 | `nodeSelector`                   | Node selector for agent pods                                                                                                                                     | `{}`                              | `false`                           |
 | `affinity`                       | Affinity rules for agent pods                                                                                                                                    | `{}`                              | `false`                           |
 | `tolerations`                    | Tolerations for agent pods                                                                                                                                       | `[]`                              | `false`                           |
 | `global.environment`             | Deployment environment label; used in Datadog tags                                                                                                               | `"onprem"`                        | `false`                           |
-| `agent.token`                    | Base64-encoded agent token blob from Entitle. Leave empty if using `agent.existingSecret`.                                                                       | `""`                              | `true`                            |
-| `agent.existingSecret`           | Name of existing Secret with `ENTITLE_JSON_CONFIGURATION` key. When set, `agent.token` is ignored.                                                              | `""`                              | `false`                           |
+| `agent.token`                    | Base64-encoded agent token blob from Entitle. Leave empty if using `agent.secretRef`.                                                                            | `"MISSING_CUSTOMER_DATA"`         | `true` (or `agent.secretRef.name`)  |
+| `agent.secretRef.name`           | Name of existing Secret with agent configuration. When set, `agent.token` is ignored.                                                                            | `""`                              | `false`                           |
+| `agent.secretRef.key`            | Key within the Secret that holds the agent configuration JSON.                                                                                                   | `"ENTITLE_JSON_CONFIGURATION"`    | `false`                           |
 | `agent.image.repository`         | Docker image repository                                                                                                                                          | `"ghcr.io/anycred/entitle-agent"` | `false`                           |
 | `agent.image.tag`                | Tag for docker image of agent                                                                                                                                    | `"latest"`                        | `false`                           |
 | `agent.replicas`                 | Number of agent pods                                                                                                                                             | `3`                               | `false`                           |
