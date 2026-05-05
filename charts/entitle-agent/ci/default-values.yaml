@@ -1,0 +1,40 @@
+# =============================================================================
+# Chart Testing (ct install) — minimal values for install smoke test
+# =============================================================================
+# This file is automatically used by `ct install` to validate that the chart
+# installs successfully in a kind cluster. It uses the secretRef path
+# so no real credentials are needed.
+#
+# The pod will not start (the referenced secrets don't exist in the test cluster),
+# but Helm install succeeds — which is what we're validating here.
+# =============================================================================
+
+kmsType: kubernetes_secret_manager
+
+platform:
+  mode: native
+
+agent:
+  # Reference a non-existent secret — install succeeds, pod stays Pending (expected)
+  secretRef:
+    name: entitle-agent-secret-ci
+  image:
+    repository: busybox   # Lightweight image for CI — agent won't actually run
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Reference a non-existent image pull secret — install still succeeds
+imagePullSecret:
+  name: entitle-registry-ci
+
+# Enable Datadog for CI
+datadog:
+  enabled: true
+  sidecarLogs: false

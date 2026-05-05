@@ -3,6 +3,96 @@ Entitle Agent
 
 A Helm Chart for Entitle's Agent.
 
+## What's New in v2.0.0
+
+- **Simplified install:** Just pass `agent.token` — the chart auto-extracts `imageCredentials` from the token blob. No need to decode and pass it separately.
+- **Pre-existing Secret support:** New `agent.secretRef` lets you reference a pre-existing Kubernetes Secret instead of passing credentials at install time. A pre-install hook automatically extracts image pull credentials and Datadog API key from the token — single-value install.
+- **Sane defaults:** `kmsType` defaults to `kubernetes_secret_manager`, `platform.mode` to `native`.
+- **GCP field rename:** `platform.gke` renamed to `platform.gcp` for consistency.
+- **Standard Helm patterns:** `nameOverride`, `fullnameOverride`, `serviceAccount` config, `podLabels`.
+- **CI/CD:** Integration tests for all install scenarios, automated chart version bump on release.
+
+### Upgrade Notes
+
+If you're upgrading from v1.x:
+- Existing `helm install` commands with explicit `--set agent.token=...` and `--set imageCredentials=...` continue to work unchanged.
+- `imageCredentials` is now **optional** — it's auto-extracted from the token blob. You can remove it from your install commands.
+- **GCP users:** `platform.gke.serviceAccount` and `platform.gke.projectId` are now `platform.gcp.serviceAccount` and `platform.gcp.projectId`.
+
+## Installation Scenarios
+
+The chart supports four installation scenarios. **The minimum required is 1 value.**
+
+### Scenario 1 — Simple Install (Recommended)
+
+Just pass the agent token blob. The chart auto-extracts `imageCredentials` and `datadogApiKey` from it.
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.token="${TOKEN}" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle --create-namespace
+```
+
+### Scenario 2 — Pre-existing Secret (Single Value)
+
+Reference a pre-existing Kubernetes Secret. A pre-install hook automatically extracts `imageCredentials` and `datadogApiKey` from the token inside the Secret — no additional configuration needed.
+
+**Step 1 — Create the Secret:**
+
+```bash
+kubectl create secret generic entitle-agent-token \
+  --from-literal=ENTITLE_JSON_CONFIGURATION='{"BASE64_CONFIGURATION":"<your-token>"}' \
+  -n entitle
+```
+
+Or as YAML:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: entitle-agent-token
+  namespace: entitle
+stringData:
+  ENTITLE_JSON_CONFIGURATION: '{"BASE64_CONFIGURATION":"<your-token>"}'
+```
+
+This works with any secret management tool — External Secrets Operator, Sealed Secrets, HashiCorp Vault, or plain `kubectl`.
+
+**Step 2 — Install the chart:**
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.secretRef.name="entitle-agent-token" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle --create-namespace
+```
+
+### Scenario 3 — Pre-existing Secret + Own Registry
+
+If you manage your own image pull secret separately:
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.secretRef.name="entitle-agent-token" \
+  --set imagePullSecret.name="my-registry-secret" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle --create-namespace
+```
+
+### Scenario 4 — Explicit Override (Backwards-Compatible)
+
+If you have existing automation that passes credentials explicitly, this still works:
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.token="${TOKEN}" \
+  --set imageCredentials="${IMAGE_CREDENTIALS}" \
+  --set kmsType="kubernetes_secret_manager" \
+  -n entitle --create-namespace
+```
+
 ## Pre-Install
 
 ```shell
@@ -22,21 +112,17 @@ Kubernetes Secret Manager is the default secret manager even if your K8s cluster
 
 Helm Chart installation:
 
-- `imageCredentials` and `agent.token` are given to you by Entitle
+- `agent.token` is given to you by Entitle (imageCredentials is auto-extracted from the token)
 - Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 - You can replace namespace `entitle` with your own namespace, but it's highly discouraged
 
 ```shell
-export IMAGE_CREDENTIALS=<IMAGE_CREDENTIALS_FROM_ENTITLE>
-export DATADOG_API_KEY=<DATADOG_API_KEY_FROM_ENTITLE>
 export TOKEN=<TOKEN_FROM_ENTITLE>
 export ORG_NAME=<YOUR ORGANIZATION NAME>
 export NAMESPACE=entitle
 
 helm upgrade --install entitle-agent entitle/entitle-agent \
     --set kmsType="kubernetes_secret_manager" \
-    --set imageCredentials=${IMAGE_CREDENTIALS} \
-    --set datadog.datadog.apiKey=${DATADOG_API_KEY} \
     --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set agent.token="${TOKEN}" \
     -n ${NAMESPACE} --create-namespace
@@ -83,9 +169,6 @@ In the step "**Configure applications to use Workload Identity**", use the follo
     TOKEN=$(jq -r '.token.value' terraform_output.json)
     COSTUMER_NAME=$(jq -r '.costumer_name.value' terraform_output.json)
     NAMESPACE=$(jq -r '.namespace.value' terraform_output.json)
-    IMAGE_CREDENTIALS=$(jq -r '.image_credentials.value' terraform_output.json)
-    DATADOG_API_KEY=$(jq -r '.datadog_api_key.value' terraform_output.json)
-    BASTION_SETUP_COMMAND=$(jq -r '.bastion_setup_command.value' terraform_output.json)
     AUTOPILOT=$(jq -r '.autopilot.value' terraform_output.json)
     AGENT_MODE=$(jq -r '.agent_mode.value' terraform_output.json)
     ```
@@ -109,7 +192,7 @@ In the following: If AutoPilot is enabled, replace --zone with --region
 
 ### C. [GCP Chart Installation](https://helm.sh/docs/helm/helm_upgrade/)
 
-- `imageCredentials` and `agent.token` are given to you by Entitle
+- `agent.token` is given to you by Entitle
 - Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 
 - If you have installed Entitle's Terraform IaC, you need to set up proxy(after [Setting up IAP-tunnel](#setting-up-iap-tunnel)):
@@ -124,10 +207,8 @@ export HTTPS_PROXY=localhost:8888
 helm upgrade --install entitle-agent entitle/entitle-agent \
   --set platform.mode="gcp" \
   --set kmsType="gcp_secret_manager" \
-  --set imageCredentials="<IMAGE_CREDENTIALS>" \
-  --set datadog.datadog.apiKey="<DATADOG_API_KEY>" \
-  --set platform.gke.serviceAccount="<ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME>" \
-  --set platform.gke.projectId="<PROJECT_ID>" \
+  --set platform.gcp.serviceAccount="<ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME>" \
+  --set platform.gcp.projectId="<PROJECT_ID>" \
   --set agent.token="<TOKEN>" \
   --set datadog.datadog.tags={company:<YOUR_ORG_NAME>} \
   -n "<NAMESPACE>" --create-namespace
@@ -139,11 +220,9 @@ If you set up environment variables you can use:
 helm upgrade --install entitle-agent entitle/entitle-agent \
   --set platform.mode="gcp" \
   --set kmsType="gcp_secret_manager" \
-  --set imageCredentials="${IMAGE_CREDENTIALS}" \
-  --set datadog.datadog.apiKey="${DATADOG_API_KEY}" \
   --set datadog.providers.gke.autopilot="${AUTOPILOT}" \
-  --set platform.gke.serviceAccount="${ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME}" \
-  --set platform.gke.projectId="${PROJECT_ID}" \
+  --set platform.gcp.serviceAccount="${ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME}" \
+  --set platform.gcp.projectId="${PROJECT_ID}" \
   --set agent.token="${TOKEN}" \
   --set datadog.datadog.tags={company:${ORGANIZATION_NAME}} \
   -n "${NAMESPACE}" --create-namespace
@@ -160,48 +239,33 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
 
 #### A. Declare Variables
 
-1. Define bash variable for `CLUSTER_NAME`:
-   `CLUSTER_NAME=<your-cluster-name>`
-1. Define your cluser's name:
+1. Define your cluster's name:
    ```shell
     export CLUSTER_NAME=<your-cluster-name>
    ```
 
 2. Update kubeconfig:
-   `aws eks update-kubeconfig --name $CLUSTER_NAME --region us-east-2 # Or any other region`
    ```shell
     aws eks update-kubeconfig --name $CLUSTER_NAME --region us-east-2   # (or any other region)
    ```
 
-**Notice:** If you installed our IAC then you may now skip to the [chart installation part](#chart-installation)
-
 3. **Notice:** If you installed our IaC then you may skip to the [chart installation part](#chart-installation).
-
-### [Create OIDC Provider](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html)
 
 #### B. [Create OIDC Provider](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html)
 
-You can check if you already have the identity provider for your cluster using one of the following:
 You can check if you already have the Identity Provider for your cluster using one of the following:
 
-- Run this command:
-  `aws eks describe-cluster --name $CLUSTER_NAME --query "cluster.identity.oidc.issuer" --output text`
-- Or [here](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/identity_providers).
 - Run the following command:
   ```shell
     aws eks describe-cluster --name $CLUSTER_NAME --query "cluster.identity.oidc.issuer" --output text
   ```
 - Alternatively, refer to [IAM Identity Providers](https://console.aws.amazon.com/iamv2/home#/identity_providers) page in AWS Console.
 
-If you don't have an OIDC provider, please create new one:
-`eksctl utils associate-iam-oidc-provider --cluster $CLUSTER_NAME --approve`
 If you don't have an OIDC provider, create new one:
 
 ```shell
 eksctl utils associate-iam-oidc-provider --cluster $CLUSTER_NAME --approve
 ```
-
-### [Create IAM Policy and Role](https://docs.aws.amazon.com/eks/latest/userguide/create-service-account-iam-policy-and-role.html)
 
 #### C. [Create IAM Policy and Role](https://docs.aws.amazon.com/eks/latest/userguide/create-service-account-iam-policy-and-role.html)
 
@@ -281,15 +345,13 @@ aws iam attach-role-policy --role-name entitle-agent-role --policy-arn=arn:aws:i
 
 Eventually, you can install our Helm chart:
 
-- `imageCredentials` and `agent.token` are given to you by Entitle
+- `agent.token` is given to you by Entitle
 - Replace `platform.aws.iamRole` with Entitle's AWS IAM Role you've created
 - Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 - You can replace namespace `entitle` with your own namespace, but it's highly discouraged
 - If you want to use hashicorp vault, set kmsType to `hashicorp_vault`
 
 ```shell
-export IMAGE_CREDENTIALS=<IMAGE_CREDENTIALS_FROM_ENTITLE>
-export DATADOG_API_KEY=<DATADOG_API_KEY_FROM_ENTITLE>
 export TOKEN=<TOKEN_FROM_ENTITLE>
 export ORG_NAME=<YOUR ORGANIZATION NAME>
 export NAMESPACE=entitle
@@ -297,8 +359,6 @@ export NAMESPACE=entitle
 helm upgrade --install entitle-agent entitle/entitle-agent \
     --set platform.mode="aws" \
     --set kmsType="aws_secret_manager" \
-    --set imageCredentials=${IMAGE_CREDENTIALS} \
-    --set datadog.datadog.apiKey=${DATADOG_API_KEY} \
     --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set platform.aws.iamRole="arn:aws:iam::${ACCOUNT_ID}:role/entitle-agent-role" \
     --set agent.token="${TOKEN}" \
@@ -324,9 +384,8 @@ The installation will be based upon the follow reading materials:
 - [Workload Identity](https://learn.microsoft.com/en-us/azure/aks/concepts-identity)
 - [Use a workload identity with an application on Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/learn/tutorial-kubernetes-workload-identity)
 - [Modernize application authentication with workload identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-migrate-from-pod-identity)
-- [Provide an identity to access the Azure Key Vault Provider for Secrets Store CSI Driver
-  ](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-identity-access)
-- [Deploy and configure workload identity (preview) on an Azure Kubernetes Service (AKS) cluster] (https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster)
+- [Provide an identity to access the Azure Key Vault Provider for Secrets Store CSI Driver](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-identity-access)
+- [Deploy and configure workload identity on an Azure Kubernetes Service (AKS) cluster](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster)
 
 ### Prerequisites
 
@@ -354,7 +413,7 @@ export KEY_VAULT_NAME=<YOUR_KEY_VAULT_NAME>
 export AAD_GROUP_OBJECT_ID=<YOUR_AAD_GROUP_OBJECT_ID>
 ```
 
-The variables `CLUSTRER_NAME`, `RESOURCE_GROUP`, `SUBSCRIPTION_ID`, `LOCATION` can be found on the AKS cluster overview page.
+The variables `CLUSTER_NAME`, `RESOURCE_GROUP`, `SUBSCRIPTION_ID`, `LOCATION` can be found on the AKS cluster overview page.
 The other variables are up to you. (we highly recommend to not change the `NAMESPACE` and `SERVICE_ACCOUNT_NAME`)
 
 If you don't have a managed identity created and assigned to your pod, perform the following steps to create and grant the necessary permissions to Key Vault.
@@ -367,7 +426,7 @@ If you don't have a managed identity created and assigned to your pod, perform t
     ```shell
     az extension add --name aks-preview
     az extension update --name aks-preview
-    ``` 
+    ```
 3. Register EnablePodIdentityPreview feature
     ```shell
     az feature register --namespace Microsoft.ContainerService --name EnablePodIdentityPreview
@@ -376,8 +435,6 @@ If you don't have a managed identity created and assigned to your pod, perform t
    ```shell
     watch -g -n 5 az feature show --namespace "Microsoft.ContainerService" --name "EnableWorkloadIdentityPreview"
     ```
-   (The -g or --chgexit option causes the watch command to exit if there is a change in the output)
-   You'll get this message: `Once the feature 'EnablePodIdentityPreview' is registered, invoking 'az provider register -n Microsoft.ContainerService' is required to get the change propagated`
    Then run:
    ```shell
     az provider register --namespace Microsoft.ContainerService
@@ -401,7 +458,7 @@ If you don't have a managed identity created and assigned to your pod, perform t
     export TENANT_ID=$(az aks show --name ${CLUSTER_NAME} --resource-group "${RESOURCE_GROUP}" --query aadProfile.tenantId -o tsv)
     ```
 6. Grant the managed identity the permissions required to access the resources in Azure it requires.
-    ```shell 
+    ```shell
    az keyvault set-policy -n ${KEY_VAULT_NAME} --secret-permissions get set list delete --spn $USER_ASSIGNED_CLIENT_ID
     ```
 7. To get the OIDC Issuer URL and save it to an environmental variable, run the following command
@@ -409,7 +466,7 @@ If you don't have a managed identity created and assigned to your pod, perform t
     export AKS_OIDC_ISSUER="$(az aks show -n ${CLUSTER_NAME} -g ${RESOURCE_GROUP} --query "oidcIssuerProfile.issuerUrl" -otsv)"
     echo "AKS_OIDC_ISSUER: ${AKS_OIDC_ISSUER}"
     ```
-8. Set credentials for kubctl to connect to your AKS cluster
+8. Set credentials for kubectl to connect to your AKS cluster
     ```shell
     az aks get-credentials -n ${CLUSTER_NAME} -g "${RESOURCE_GROUP}" --admin
     ```
@@ -420,7 +477,7 @@ If you don't have a managed identity created and assigned to your pod, perform t
     ```
 
 10. Login with kubelogin
-    There are serveral ways login with kubelogin according to the [documentation](https://github.com/Azure/kubelogin)
+    There are several ways login with kubelogin according to the [documentation](https://github.com/Azure/kubelogin)
     But we recommend to use the interactive login:
     ```shell
     export KUBECONFIG=<PATH_TO_KUBECONFIG>
@@ -433,23 +490,15 @@ If you don't have a managed identity created and assigned to your pod, perform t
 
 11. helm install
     ```shell
-    export IMAGE_CREDENTIALS=<IMAGE_CREDENTIALS_FROM_ENTITLE>
-    export DATADOG_API_KEY=<DATADOG_API_KEY_FROM_ENTITLE>
     export TOKEN=<TOKEN_FROM_ENTITLE>
-    export ORG_NAME=<YOUR ORGANIZATION NAME> 
+    export ORG_NAME=<YOUR ORGANIZATION NAME>
     ```
-    - IMAGE_CREDENTIALS: The credentials to pull the Entitle Agent image from the Entitle registry. (will be provided by Entitle)
-    - DATADOG_API_KEY: The API key for Datadog. (will be provided by Entitle)
-    - TOKEN: The token to authenticate with Entitle. (will be provided by Entitle)
-    - ORG_NAME: The name of your organization
 
 - If you want to use hashicorp vault, set kmsType to `hashicorp_vault`
     ```shell
     helm upgrade --install entitle-agent entitle/entitle-agent \
     --set platform.mode="azure" \
     --set kmsType="azure_secret_manager" \
-    --set imageCredentials=${IMAGE_CREDENTIALS} \
-    --set datadog.datadog.apiKey=${DATADOG_API_KEY} \
     --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set datadog.datadog.kubelet.tlsVerify=false \
     --set datadog.datadog.kubelet.host.valueFrom.fieldRef.fieldPath="spec.nodeName" \
@@ -466,28 +515,41 @@ If you don't have a managed identity created and assigned to your pod, perform t
 
 The following table lists the configurable parameters of the Entitle-agent chart and their default values.
 
-| Parameter                        | Description                                                                                                                                                      | Default                           | Required input by user            |
+| Parameter                        | Description                                                                                                                                                      | Default                           | Required                          |
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------------------------------|
-| `imageCredentials`               | Credentials you've received upon agent installation (Contact us for more info)                                                                                   | `null`                            | `true`                            |
-| `kmsType`                        | KMS for agent to save secrets. Take value from ["kubernetes_secret_manager", "aws_secret_manager","gcp_secret_manager","azure_secret_manager","hashicorp_vault"] | `null`                            | `true`                            |
-| `platform.mode`                  | Take values from: [aws,gcp,azure]                                                                                                                                | `"gcp"`                           | `true`                            |
-| `platform.aws.iamRole`           | IAM role for agent's service account annotations                                                                                                                 | `null`                            | `true` if `platform.mode="aws"`   |
-| `platform.gke.serviceAccount`    | GKE service account for agent's service account annotations                                                                                                      | `null`                            | `true` if `mode="platform.gcp"`   |
-| `platform.gke.projectId`         | GCP project ID for agent's service account annotations                                                                                                           | `null`                            | `true` if `mode="platform.gcp"`   |
-| `platform.azure.clientId`        | Azure AD application client ID to be used with the pod (USER_ASSIGNED_CLIENT_ID from above)                                                                      | `null`                            | `true` if `mode="platform.azure"` |
-| `platform.azure.tenantId`        | Azure AD tenant ID to be used with the pod.                                                                                                                      | `null`                            | `true` if `mode="platform.azure"` |
-| `platform.azure.keyVaultName`    | Name of the Azure Key Vault to be used for storing the agent secrets                                                                                             | `null`                            | `true` if `mode="platform.azure"` |
-| `podAnnotations`                 | https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/                                                                                   | `{}`                              | `false`                           |
-| `nodeSelector`                   | https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector                                                                            | `{}`                              | `false`                           |
-| `global.environment`             | Used for metadata of deployment                                                                                                                                  | `"onprem"`                        | `false`                           |
+| `nameOverride`                   | Override the chart name used in resource names                                                                                                                   | `""`                              | `false`                           |
+| `fullnameOverride`               | Fully override the generated resource names                                                                                                                      | `""`                              | `false`                           |
+| `imageCredentials`               | Base64-encoded dockerconfigjson. **Optional** — auto-extracted from `agent.token` if not set.                                                                    | `"MISSING_CUSTOMER_DATA"`         | `false`                           |
+| `imagePullSecret.name`           | Name of existing `kubernetes.io/dockerconfigjson` Secret for image pull.                                                                                         | `""`                              | `false`                           |
+| `serviceAccount.create`          | Whether to create a ServiceAccount                                                                                                                               | `true`                            | `false`                           |
+| `serviceAccount.name`            | Override the ServiceAccount name                                                                                                                                 | `""`                              | `false`                           |
+| `serviceAccount.annotations`     | Additional annotations for the ServiceAccount                                                                                                                    | `{}`                              | `false`                           |
+| `kmsType`                        | KMS for agent to save secrets. Values: `kubernetes_secret_manager`, `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`        | `"kubernetes_secret_manager"`     | `true`                            |
+| `platform.mode`                  | Cloud platform. Values: `native`, `aws`, `gcp`, `azure`                                                                                                         | `"native"`                        | `true`                            |
+| `platform.aws.iamRole`           | IAM role ARN for agent's IRSA service account annotation                                                                                                         | `""`                              | `true` if `platform.mode="aws"`   |
+| `platform.gcp.serviceAccount`    | GKE service account for agent's Workload Identity annotation                                                                                                     | `""`                              | `true` if `platform.mode="gcp"`   |
+| `platform.gcp.projectId`         | GCP project ID for agent's Workload Identity annotation                                                                                                          | `""`                              | `true` if `platform.mode="gcp"`   |
+| `platform.azure.clientId`        | Azure AD application client ID for workload identity                                                                                                             | `""`                              | `true` if `platform.mode="azure"` |
+| `platform.azure.tenantId`        | Azure AD tenant ID for workload identity                                                                                                                         | `""`                              | `true` if `platform.mode="azure"` |
+| `platform.azure.keyVaultName`    | Azure Key Vault name for storing agent secrets                                                                                                                   | `""`                              | `true` if `platform.mode="azure"` |
+| `podAnnotations`                 | Additional annotations for agent pods                                                                                                                            | `{}`                              | `false`                           |
+| `podLabels`                      | Additional labels for agent pods                                                                                                                                 | `{}`                              | `false`                           |
+| `nodeSelector`                   | Node selector for agent pods                                                                                                                                     | `{}`                              | `false`                           |
+| `affinity`                       | Affinity rules for agent pods                                                                                                                                    | `{}`                              | `false`                           |
+| `tolerations`                    | Tolerations for agent pods                                                                                                                                       | `[]`                              | `false`                           |
+| `global.environment`             | Deployment environment label; used in Datadog tags                                                                                                               | `"onprem"`                        | `false`                           |
+| `agent.token`                    | Base64-encoded agent token blob from Entitle. Leave empty if using `agent.secretRef`.                                                                            | `"MISSING_CUSTOMER_DATA"`         | `true` (or `agent.secretRef.name`)  |
+| `agent.secretRef.name`           | Name of existing Secret with agent configuration. When set, `agent.token` is ignored.                                                                            | `""`                              | `false`                           |
+| `agent.secretRef.key`            | Key within the Secret that holds the agent configuration JSON.                                                                                                   | `"ENTITLE_JSON_CONFIGURATION"`    | `false`                           |
 | `agent.image.repository`         | Docker image repository                                                                                                                                          | `"ghcr.io/anycred/entitle-agent"` | `false`                           |
-| `agent.image.tag`                | Tag for docker image of agent                                                                                                                                    | `"master"`                        | `false`                           |
-| `agent.replicas`                 | Number of pods to run                                                                                                                                            | `1`                               | `false`                           |
-| `agent.resources.requests.cpu`   | CPU request for agent pod                                                                                                                                        | `"500m"`                          | `false`                           |
+| `agent.image.tag`                | Tag for docker image of agent                                                                                                                                    | `"latest"`                        | `false`                           |
+| `agent.replicas`                 | Number of agent pods                                                                                                                                             | `3`                               | `false`                           |
+| `agent.resources.requests.cpu`   | CPU request for agent pod                                                                                                                                        | `"1000m"`                         | `false`                           |
 | `agent.resources.requests.memory`| Memory request for agent pod                                                                                                                                     | `"1Gi"`                           | `false`                           |
-| `agent.resources.limits.cpu`     | CPU limit for agent pod                                                                                                                                          | `"1000m"`                         | `false`                           |
+| `agent.resources.limits.cpu`     | CPU limit for agent pod                                                                                                                                          | `"5000m"`                         | `false`                           |
 | `agent.resources.limits.memory`  | Memory limit for agent pod                                                                                                                                       | `"3Gi"`                           | `false`                           |
-| `agent.token`                    | Credentials you've received upon agent installation (Contact us for more info)                                                                                   | `null`                            | `true`                            |
-| `datadog.providers.gke.autopilot`| Whether to enable autopilot or not                                                                                                                               | `false`                           | `false`                           |
-| `datadog.datadog.apiKey`         | Datadog API key                                                                                                                                                  | `null`                            | `true`                            |
-| `datadog.datadog.tags`           | Datadog Tag - Put your company name (https://docs.datadoghq.com/tagging/)                                                                                        | `null`                            | `true`                            |
+| `datadog.enabled`                | Enable the Datadog Helm subchart                                                                                                                                 | `true`                            | `false`                           |
+| `datadog.sidecarLogs`            | Enable Datadog sidecar for log shipping (when datadog.enabled=false)                                                                                             | `true`                            | `false`                           |
+| `datadog.datadog.apiKey`         | Datadog API key                                                                                                                                                  | `""`                              | `false`                           |
+| `datadog.datadog.tags`           | Datadog tags (https://docs.datadoghq.com/tagging/)                                                                                                               | `[]`                              | `false`                           |
+| `datadog.providers.gke.autopilot`| Whether to enable GKE autopilot mode                                                                                                                             | `false`                           | `false`                           |

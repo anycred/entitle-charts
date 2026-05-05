@@ -2,27 +2,31 @@
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
-{{- default "entitle-agent" | trunc 63 | trimSuffix "-" }}
+{{- default "entitle-agent" .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
+Defaults to "entitle-agent" (hardcoded) for backward compatibility with existing
+deployments. Use fullnameOverride to change resource names if needed.
 */}}
 {{- define "entitle-agent.fullname" -}}
-{{- printf "%s" "entitle-agent" | trunc 63}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- default "entitle-agent" .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
 {{- end }}
 
 {{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "entitle-agent.chart" -}}
-{{- printf "%s-%s" "entitle-agent" .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-Common labels
+Common labels — applied to every resource created by the chart.
 */}}
 {{- define "entitle-agent.labels" -}}
 helm.sh/chart: {{ include "entitle-agent.chart" . }}
@@ -34,7 +38,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Selector labels
+Selector labels — used in spec.selector.matchLabels and pod template labels.
+These are immutable after initial deploy (changing them breaks rolling updates).
 */}}
 {{- define "entitle-agent.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "entitle-agent.name" . }}
@@ -42,15 +47,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Service account annotations
+Service account name — returns the configured SA name or the chart fullname.
 */}}
 {{- define "entitle-agent.serviceAccountName" -}}
-{{- default "entitle-agent-sa" | trunc 63 | trimSuffix "-" }}
+{{- if .Values.serviceAccount.create }}
+{{- default (printf "%s-sa" (include "entitle-agent.fullname" .)) .Values.serviceAccount.name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
 {{- end }}
 
-
 {{/*
-Service account labels
+Service account labels — adds Azure workload identity label when platform is azure.
 */}}
 {{- define "entitle-agent.serviceAccountLabels" -}}
 {{- if eq .Values.platform.mode "azure" -}}
@@ -58,19 +66,22 @@ azure.workload.identity/use: "true"
 {{- end }}
 {{- end }}
 
-
 {{/*
-Service Accounts annotations
+Service account annotations — cloud-specific IAM annotations.
+Configures IRSA (AWS), Workload Identity (GCP), or Workload Identity (Azure)
+based on platform.mode. Merges with user-provided serviceAccount.annotations.
 */}}
 {{- define "entitle-agent.serviceAccountAnnotations" -}}
-{{- if eq .Values.platform.mode "aws" -}}
+{{- with .Values.serviceAccount.annotations }}
+{{- toYaml . }}
+{{- end }}
+{{- if eq .Values.platform.mode "aws" }}
 eks.amazonaws.com/role-arn: {{ .Values.platform.aws.iamRole }}
-{{- else if eq .Values.platform.mode "gcp" -}}
-iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" .Values.platform.gke.serviceAccount .Values.platform.gke.projectId | quote}}
-{{- else if eq .Values.platform.mode "azure" -}}
+{{- else if eq .Values.platform.mode "gcp" }}
+iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" .Values.platform.gcp.serviceAccount .Values.platform.gcp.projectId | quote}}
+{{- else if eq .Values.platform.mode "azure" }}
 azure.workload.identity/client-id: {{ .Values.platform.azure.clientId }}
 azure.workload.identity/tenant-id: {{ .Values.platform.azure.tenantId }}
-{{- else -}}
 {{- end }}
 {{- end }}
 
@@ -88,23 +99,13 @@ Fullname with image tag
 {{- printf "%s_%s" (include "entitle-agent.fullname" .) (include "entitle-agent.imageTag" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/* ============================================================
+     Datadog proxy helper functions
+     ============================================================ */}}
 
-{{/*
-Node selector
-*/}}
-{{- define "entitle-agent.nodeSelector" -}}
-{{- if .Values.nodeSelector }}
-{{- toYaml .Values.nodeSelector | nindent 8 }}
-{{- end }}
-{{- end }}
-{{/*
-*/}}
-
-{{/* Datadog proxy helper functions */}}
-
-{{/* Gets token from agent.token */}}
+{{/* Gets token from agent.token (returns empty if MISSING_CUSTOMER_DATA placeholder) */}}
 {{- define "entitle-agent.getToken" -}}
-  {{- if and $.Values.agent $.Values.agent.token -}}
+  {{- if and $.Values.agent $.Values.agent.token (ne $.Values.agent.token "MISSING_CUSTOMER_DATA") -}}
     {{- $.Values.agent.token -}}
   {{- end -}}
 {{- end -}}
@@ -134,7 +135,7 @@ Node selector
 
 {{/* Resolves imageCredentials: --set imageCredentials takes priority, otherwise extract from token */}}
 {{- define "entitle-agent.imageCredentials" -}}
-  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
+  {{- if and .Values.imageCredentials (ne .Values.imageCredentials "") (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
     {{- .Values.imageCredentials -}}
   {{- else -}}
     {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "imageCredentials") -}}
@@ -167,3 +168,39 @@ Node selector
   {{- end -}}
 {{- end -}}
 
+{{/* ============================================================
+     Secret reference helpers
+     ============================================================ */}}
+
+{{/*
+Agent secret name — resolves to the Secret containing the agent token.
+Returns agent.secretRef.name if set (pre-existing Secret managed outside Helm),
+otherwise falls back to the chart-managed secret.
+*/}}
+{{- define "entitle-agent.agentSecretName" -}}
+{{- if .Values.agent.secretRef.name -}}
+{{- .Values.agent.secretRef.name -}}
+{{- else -}}
+{{- include "entitle-agent.fullname" . }}-secret
+{{- end -}}
+{{- end }}
+
+{{/*
+Agent secret key — the key inside the Secret that holds the agent configuration.
+Defaults to ENTITLE_JSON_CONFIGURATION but can be overridden via agent.secretRef.key.
+*/}}
+{{- define "entitle-agent.agentSecretKey" -}}
+{{- default "ENTITLE_JSON_CONFIGURATION" .Values.agent.secretRef.key -}}
+{{- end }}
+
+{{/*
+Image pull secret name — resolves to the Secret for pulling the agent image.
+Returns imagePullSecret.name if set, otherwise the chart-managed docker-login secret.
+*/}}
+{{- define "entitle-agent.imagePullSecretName" -}}
+{{- if .Values.imagePullSecret.name -}}
+{{- .Values.imagePullSecret.name -}}
+{{- else -}}
+{{- include "entitle-agent.fullname" . }}-docker-login
+{{- end -}}
+{{- end }}
