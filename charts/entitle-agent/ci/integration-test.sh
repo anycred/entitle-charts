@@ -34,7 +34,7 @@ FAILED=0
 
 cleanup() {
   helm uninstall "$RELEASE" -n "$NAMESPACE" 2>/dev/null || true
-  kubectl delete namespace "$NAMESPACE" --wait --timeout=60s 2>/dev/null || true
+  kubectl delete namespace "$NAMESPACE" --wait --timeout=60s 2>/dev/null
 }
 
 wait_for_pod() {
@@ -75,10 +75,7 @@ wait_for_pod() {
 
 check_secret_exists() {
   local name="$1"
-  if kubectl get secret "$name" -n "$NAMESPACE" >/dev/null 2>&1; then
-    return 0
-  fi
-  return 1
+  kubectl get secret "$name" -n "$NAMESPACE" >/dev/null 2>&1
 }
 
 check_deployment_image_pull_secret() {
