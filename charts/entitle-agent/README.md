@@ -30,9 +30,10 @@ Just pass the agent token blob. The chart auto-extracts `imageCredentials` and `
 ```bash
 helm upgrade --install entitle-agent entitle/entitle-agent \
   --set agent.token="${TOKEN}" \
-  --set kmsType="kubernetes_secret_manager" \
   -n entitle --create-namespace
 ```
+
+> `kmsType` defaults to `kubernetes_secret_manager` — only set it if you need a different KMS (e.g., `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`).
 
 ### Scenario 2 — Pre-existing Secret (Single Value)
 
@@ -65,7 +66,6 @@ This works with any secret management tool — External Secrets Operator, Sealed
 ```bash
 helm upgrade --install entitle-agent entitle/entitle-agent \
   --set agent.secretRef.name="entitle-agent-token" \
-  --set kmsType="kubernetes_secret_manager" \
   -n entitle --create-namespace
 ```
 
@@ -77,7 +77,6 @@ If you manage your own image pull secret separately:
 helm upgrade --install entitle-agent entitle/entitle-agent \
   --set agent.secretRef.name="entitle-agent-token" \
   --set imagePullSecret.name="my-registry-secret" \
-  --set kmsType="kubernetes_secret_manager" \
   -n entitle --create-namespace
 ```
 
