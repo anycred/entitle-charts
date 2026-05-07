@@ -17,6 +17,7 @@ CI_DIR="${CHART_DIR}/ci"
 NAMESPACE="entitle-ci"
 RELEASE="entitle-agent"
 TIMEOUT=120  # seconds to wait for pods
+POD_READY_TIMEOUT=300  # seconds to wait for pod Ready (1/1)
 
 # Colors
 RED='\033[0;31m'
@@ -41,7 +42,6 @@ cleanup() {
 
 wait_for_pod_running() {
   # Waits for a pod to be in Running state (container started, image pulled).
-  # Does NOT require Ready (startup probe may depend on external connectivity).
   local label="$1"
   local elapsed=0
 
@@ -69,6 +69,62 @@ wait_for_pod_running() {
   echo "  Timed out after ${TIMEOUT}s"
   kubectl get pods -n "$NAMESPACE" 2>/dev/null || true
   return 1
+}
+
+wait_for_pod_ready() {
+  # Waits for a pod to be 1/1 Ready (startup probe passed).
+  local label="$1"
+  local elapsed=0
+
+  while [ $elapsed -lt $POD_READY_TIMEOUT ]; do
+    local ready
+    ready=$(kubectl get pods -n "$NAMESPACE" -l "$label" -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
+
+    if [ "$ready" = "true" ]; then
+      return 0
+    fi
+
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+
+  return 1
+}
+
+diagnose_pod() {
+  # Collect diagnostic info for a pod that isn't becoming Ready
+  local label="$1"
+  local test_name="$2"
+
+  info "Diagnostics for ${test_name}"
+
+  echo "--- Pod status ---"
+  kubectl get pods -n "$NAMESPACE" -l "$label" -o wide 2>/dev/null || true
+
+  echo "--- Pod events ---"
+  kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp 2>/dev/null | grep -i entitle | tail -10 || true
+
+  echo "--- Agent logs (last 30 lines) ---"
+  kubectl logs -n "$NAMESPACE" -l "$label" --tail=30 2>/dev/null || true
+
+  echo "--- Network connectivity from inside the cluster ---"
+  # Test DNS + TCP to Kafka and agent.entitle.io from a debug pod
+  kubectl run net-diag --image=busybox --restart=Never -n "$NAMESPACE" --rm -i --timeout=30s --command -- sh -c '
+    echo "=== DNS resolution ==="
+    nslookup agent.entitle.io 2>&1 || echo "DNS FAILED for agent.entitle.io"
+    nslookup b-1-public.entitleqakafka.9pmm5z.c4.kafka.eu-west-1.amazonaws.com 2>&1 || echo "DNS FAILED for Kafka"
+
+    echo "=== TCP connectivity ==="
+    echo "Testing agent.entitle.io:443..."
+    timeout 5 sh -c "cat < /dev/null > /dev/tcp/agent.entitle.io/443" 2>/dev/null && echo "OK" || wget -T 5 -q --spider https://agent.entitle.io 2>&1 && echo "HTTPS OK" || echo "FAILED"
+
+    echo "Testing Kafka broker:9196..."
+    timeout 5 sh -c "cat < /dev/null > /dev/tcp/b-1-public.entitleqakafka.9pmm5z.c4.kafka.eu-west-1.amazonaws.com/9196" 2>/dev/null && echo "OK" || echo "FAILED (trying wget)..."
+    wget -T 5 -q -O /dev/null "http://b-1-public.entitleqakafka.9pmm5z.c4.kafka.eu-west-1.amazonaws.com:9196" 2>&1 || echo "(wget expected to fail on non-HTTP, but connection was attempted)"
+  ' 2>&1 || echo "(net-diag pod finished)"
+
+  echo "--- End diagnostics ---"
+  echo ""
 }
 
 check_secret_exists() {
@@ -121,7 +177,7 @@ else
   fail "Test 1: docker-login secret NOT created"
 fi
 
-# Verify pod comes up
+# Verify pod reaches Running state (image pulled, container started)
 if wait_for_pod_running "app.kubernetes.io/name=entitle-agent"; then
   pass "Test 1: agent pod Running"
 else
@@ -133,6 +189,14 @@ if check_deployment_image_pull_secret "entitle-agent-docker-login"; then
   pass "Test 1: imagePullSecrets correct"
 else
   fail "Test 1: imagePullSecrets incorrect"
+fi
+
+# Check if pod becomes Ready (1/1) — if not, collect diagnostics
+if wait_for_pod_ready "app.kubernetes.io/name=entitle-agent"; then
+  pass "Test 1: agent pod 1/1 Ready"
+else
+  fail "Test 1: agent pod NOT Ready (startup probe failed)"
+  diagnose_pod "app.kubernetes.io/name=entitle-agent" "Test 1"
 fi
 
 echo ""
