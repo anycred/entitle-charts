@@ -34,7 +34,9 @@ FAILED=0
 
 cleanup() {
   helm uninstall "$RELEASE" -n "$NAMESPACE" 2>/dev/null || true
-  kubectl delete namespace "$NAMESPACE" --wait --timeout=60s 2>/dev/null
+  if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+    kubectl delete namespace "$NAMESPACE" --wait --timeout=60s
+  fi
 }
 
 wait_for_pod() {
