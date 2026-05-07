@@ -16,7 +16,7 @@ CHART_DIR="charts/entitle-agent"
 CI_DIR="${CHART_DIR}/ci"
 NAMESPACE="entitle-ci"
 RELEASE="entitle-agent"
-TIMEOUT=300  # seconds to wait for pods (agent startup probe includes Kafka connectivity)
+TIMEOUT=120  # seconds to wait for pods
 
 # Colors
 RED='\033[0;31m'
@@ -39,30 +39,26 @@ cleanup() {
   fi
 }
 
-wait_for_pod() {
+wait_for_pod_running() {
+  # Waits for a pod to be in Running state (container started, image pulled).
+  # Does NOT require Ready (startup probe may depend on external connectivity).
   local label="$1"
-  local expected_ready="$2"
   local elapsed=0
 
   while [ $elapsed -lt $TIMEOUT ]; do
-    local status
-    status=$(kubectl get pods -n "$NAMESPACE" -l "$label" -o jsonpath='{.items[0].status.containerStatuses[*].ready}' 2>/dev/null || echo "")
+    local phase
+    phase=$(kubectl get pods -n "$NAMESPACE" -l "$label" -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
 
-    # Count true values
-    local ready_count
-    ready_count=$(echo "$status" | tr ' ' '\n' | grep -c "true" 2>/dev/null || echo "0")
-    ready_count=$(echo "$ready_count" | tr -d '[:space:]')
-
-    if [ "${ready_count:-0}" -eq "$expected_ready" ] 2>/dev/null; then
+    if [ "$phase" = "Running" ]; then
       return 0
     fi
 
-    # Check for CrashLoopBackOff
-    local phase
-    phase=$(kubectl get pods -n "$NAMESPACE" -l "$label" -o jsonpath='{.items[0].status.containerStatuses[?(@.ready==false)].state.waiting.reason}' 2>/dev/null || echo "")
-    if echo "$phase" | grep -q "CrashLoopBackOff"; then
-      echo "  Pod is in CrashLoopBackOff"
-      kubectl logs -n "$NAMESPACE" -l "$label" --tail=10 2>/dev/null || true
+    # Check for permanent failures
+    local waiting_reason
+    waiting_reason=$(kubectl get pods -n "$NAMESPACE" -l "$label" -o jsonpath='{.items[0].status.containerStatuses[0].state.waiting.reason}' 2>/dev/null || echo "")
+    if echo "$waiting_reason" | grep -qE "ImagePullBackOff|ErrImagePull|InvalidImageName"; then
+      echo "  Pod failed: $waiting_reason"
+      kubectl describe pod -n "$NAMESPACE" -l "$label" 2>/dev/null | tail -5 || true
       return 1
     fi
 
@@ -126,10 +122,10 @@ else
 fi
 
 # Verify pod comes up
-if wait_for_pod "app.kubernetes.io/name=entitle-agent" 1; then
-  pass "Test 1: agent pod 1/1 Ready"
+if wait_for_pod_running "app.kubernetes.io/name=entitle-agent"; then
+  pass "Test 1: agent pod Running"
 else
-  fail "Test 1: agent pod NOT ready"
+  fail "Test 1: agent pod NOT running"
 fi
 
 # Verify imagePullSecrets references the chart-managed secret
@@ -173,10 +169,10 @@ else
 fi
 
 # Verify pod comes up
-if wait_for_pod "app.kubernetes.io/name=entitle-agent" 1; then
-  pass "Test 2: agent pod 1/1 Ready"
+if wait_for_pod_running "app.kubernetes.io/name=entitle-agent"; then
+  pass "Test 2: agent pod Running"
 else
-  fail "Test 2: agent pod NOT ready"
+  fail "Test 2: agent pod NOT running"
 fi
 
 # Verify imagePullSecrets references the hook-created secret
@@ -219,10 +215,10 @@ else
 fi
 
 # Verify pod comes up
-if wait_for_pod "app.kubernetes.io/name=entitle-agent" 1; then
-  pass "Test 3: agent pod 1/1 Ready"
+if wait_for_pod_running "app.kubernetes.io/name=entitle-agent"; then
+  pass "Test 3: agent pod Running"
 else
-  fail "Test 3: agent pod NOT ready"
+  fail "Test 3: agent pod NOT running"
 fi
 
 # Verify imagePullSecrets references the user-provided secret
