@@ -16,7 +16,7 @@ CHART_DIR="charts/entitle-agent"
 CI_DIR="${CHART_DIR}/ci"
 NAMESPACE="entitle-ci"
 RELEASE="entitle-agent"
-TIMEOUT=120  # seconds to wait for pods
+TIMEOUT=300  # seconds to wait for pods (agent startup probe includes Kafka connectivity)
 
 # Colors
 RED='\033[0;31m'
