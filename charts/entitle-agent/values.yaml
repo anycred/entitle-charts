@@ -18,15 +18,6 @@ imagePullSecret:
   # When set, imageCredentials is ignored and no docker-login Secret is created.
   name: ""
 
-# -- serviceAccount configuration for the agent pods.
-serviceAccount:
-  # -- create controls whether a ServiceAccount is created by the chart.
-  create: true
-  # -- name overrides the ServiceAccount name. Default: "<fullname>-sa".
-  name: ""
-  # -- annotations to add to the ServiceAccount (merged with cloud platform annotations).
-  annotations: {}
-
 # -- platform: Cloud platform configuration.
 # Determines service account annotations for IRSA (AWS), Workload Identity (GCP/Azure).
 platform:

@@ -43,14 +43,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Service account name — returns the configured SA name or the chart fullname.
+Service account name
 */}}
 {{- define "entitle-agent.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (printf "%s-sa" (include "entitle-agent.fullname" .)) .Values.serviceAccount.name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
+{{- default "entitle-agent-sa" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -65,13 +61,10 @@ azure.workload.identity/use: "true"
 {{/*
 Service account annotations — cloud-specific IAM annotations.
 Configures IRSA (AWS), Workload Identity (GCP), or Workload Identity (Azure)
-based on platform.mode. Merges with user-provided serviceAccount.annotations.
+based on platform.mode.
 */}}
 {{- define "entitle-agent.serviceAccountAnnotations" -}}
-{{- with .Values.serviceAccount.annotations }}
-{{- toYaml . }}
-{{- end }}
-{{- if eq .Values.platform.mode "aws" }}
+{{- if eq .Values.platform.mode "aws" -}}
 eks.amazonaws.com/role-arn: {{ .Values.platform.aws.iamRole }}
 {{- else if eq .Values.platform.mode "gcp" }}
 iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" .Values.platform.gcp.serviceAccount .Values.platform.gcp.projectId | quote}}

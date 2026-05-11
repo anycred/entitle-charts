@@ -34,26 +34,6 @@
         }
       }
     },
-    "serviceAccount": {
-      "type": "object",
-      "description": "ServiceAccount configuration",
-      "properties": {
-        "create": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether to create a ServiceAccount"
-        },
-        "name": {
-          "type": "string",
-          "default": "",
-          "description": "Override the ServiceAccount name"
-        },
-        "annotations": {
-          "type": "object",
-          "description": "Additional annotations for the ServiceAccount"
-        }
-      }
-    },
     "externalKmsParams": {
       "type": "object",
       "properties": {
