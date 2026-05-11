@@ -29,6 +29,11 @@ platform:
   gcp:
     serviceAccount: ""    # GKE service account name (without @project.iam.gserviceaccount.com)
     projectId: ""         # GCP project ID
+  # -- gke: Deprecated alias for gcp. Use platform.gcp instead.
+  # Kept for backward compatibility — if platform.gcp values are empty, falls back to gke.
+  gke:
+    serviceAccount: ""
+    projectId: ""
   azure:
     clientId: ""          # Azure AD application (client) ID for workload identity
     tenantId: ""          # Azure AD tenant ID
