@@ -7,16 +7,6 @@
     "kmsType"
   ],
   "properties": {
-    "nameOverride": {
-      "type": "string",
-      "default": "",
-      "description": "Override the chart name used in resource names"
-    },
-    "fullnameOverride": {
-      "type": "string",
-      "default": "",
-      "description": "Fully override the generated resource names"
-    },
     "kmsType": {
       "type": "string",
       "description": "Key Management Service for storing internal Entitle secrets",

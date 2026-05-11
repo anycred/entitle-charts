@@ -5,11 +5,6 @@
 # Chart repo: https://anycred.github.io/entitle-charts/
 # =============================================================================
 
-# -- nameOverride overrides the chart name used in resource names.
-nameOverride: ""
-# -- fullnameOverride fully overrides the generated resource names.
-fullnameOverride: ""
-
 # -- imageCredentials: Base64-encoded dockerconfigjson for the agent image registry.
 # Typically auto-extracted from agent.token (the token blob contains this field).
 # Only set explicitly if you need to override the registry credentials in the token.

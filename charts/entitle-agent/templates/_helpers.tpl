@@ -2,20 +2,16 @@
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
-{{- default "entitle-agent" .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default "entitle-agent" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
-Defaults to "entitle-agent" (hardcoded) for backward compatibility with existing
-deployments. Use fullnameOverride to change resource names if needed.
+We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+If release name contains chart name it will be used as a full name.
 */}}
 {{- define "entitle-agent.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- default "entitle-agent" .Values.nameOverride | trunc 63 | trimSuffix "-" }}
-{{- end }}
+{{- printf "%s" "entitle-agent" | trunc 63}}
 {{- end }}
 
 {{/*
