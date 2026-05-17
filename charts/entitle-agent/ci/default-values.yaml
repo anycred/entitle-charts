@@ -1,0 +1,31 @@
+# =============================================================================
+# Chart Testing (ct install) — minimal values for install smoke test
+# =============================================================================
+# This file is automatically used by `ct install` to validate that the chart
+# installs successfully in a kind cluster. Uses a dummy token so helm install
+# succeeds without real credentials. Pods will not start — that's expected.
+#
+# Real integration tests (with actual credentials) run separately via
+# the integration-test job using ci/test-*.yaml values files.
+# =============================================================================
+
+agent:
+  # Dummy token: decodes to {"test":"test"} — no real credentials.
+  # Chart creates the agent secret but pods stay Pending (expected).
+  token: "eyJ0ZXN0IjoidGVzdCJ9"
+  image:
+    repository: busybox
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Disable Datadog entirely for smoke test
+datadog:
+  enabled: false
+  sidecarLogs: false

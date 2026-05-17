@@ -1,0 +1,11 @@
+# Patterns to ignore when building packages.
+.git/
+.gitignore
+.github/
+ci/
+tests/
+*.md
+LICENSE
+CHANGELOG.md
+.vscode/
+.idea/

@@ -1,3 +1,12 @@
+# =============================================================================
+# Release Charts
+# =============================================================================
+# Triggered on push to master (after PR merge) or manual dispatch.
+#
+# Auto-bumps the chart patch version if the current version was already released
+# (prevents silent failures when developers forget to bump Chart.yaml).
+# Then runs chart-releaser to publish to GitHub Pages.
+# =============================================================================
 name: Release Charts
 
 on:
@@ -5,7 +14,6 @@ on:
   push:
     branches:
       - master
-    tags:
 
 jobs:
   release:
@@ -34,6 +42,29 @@ jobs:
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo add datadog https://helm.datadoghq.com
+
+      # Auto-bump: if the current chart version already has a release tag,
+      # increment the patch version so chart-releaser has something new to publish.
+      # This prevents silent failures when developers forget to bump Chart.yaml.
+      - name: Bump chart patch version if already released
+        run: |
+          CHART_FILE="charts/entitle-agent/Chart.yaml"
+          CURRENT=$(grep '^version:' "$CHART_FILE" | awk '{print $2}')
+          echo "Current chart version: ${CURRENT}"
+
+          # Check if a release tag already exists for this version
+          if git tag | grep -q "entitle-agent-${CURRENT}$"; then
+            echo "Version ${CURRENT} already released — bumping patch version"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            NEW="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            sed -i "s/^version: .*/version: ${NEW}/" "$CHART_FILE"
+            echo "Bumped to ${NEW}"
+            git add "$CHART_FILE"
+            git commit -m "chore(release): bump entitle-agent chart to ${NEW} [skip ci]"
+            git push
+          else
+            echo "Version ${CURRENT} not yet released — proceeding without bump"
+          fi
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@cae68fefc6b5f367a0275617c9f83181ba54714f # v1.7.0

@@ -1,5 +1,23 @@
-Congratulations, you have installed Entitle's on-prem agent!
-You can see your running agents using
-    kubectl get pods
+{{- $fullName := include "entitle-agent.fullname" . -}}
 
-Feel free to contact us regarding any issues!
+{{ .Chart.Name }} v{{ .Chart.Version }} deployed.
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Platform:  {{ .Values.platform.mode }}
+
+{{- if .Values.agent.secretRef.name }}
+  Token:     from pre-existing Secret "{{ .Values.agent.secretRef.name }}"
+{{- else }}
+  Token:     chart-managed Secret "{{ $fullName }}-secret"
+{{- end }}
+
+Verify the deployment:
+
+  kubectl get pods -l "app.kubernetes.io/name={{ include "entitle-agent.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -n {{ .Release.Namespace }}
+
+Check agent logs:
+
+  kubectl logs -l "app.kubernetes.io/name={{ include "entitle-agent.name" . }}" -n {{ .Release.Namespace }} --tail=50
+
+Documentation: https://docs.beyondtrust.com/entitle/docs/entitle-agent

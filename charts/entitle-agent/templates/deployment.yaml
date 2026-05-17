@@ -3,12 +3,11 @@ kind: Deployment
 metadata:
   name: {{ include "entitle-agent.fullname" . }}
   labels:
-    app: {{ include "entitle-agent.fullname" . }}
+    {{- include "entitle-agent.labels" . | nindent 4 }}
     environment: {{ .Values.global.environment }}
     tags.datadoghq.com/env: {{ .Values.global.environment }}
     tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
-    tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" .}}
-    {{- include "entitle-agent.labels" . | nindent 4 }}
+    tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" . }}
 spec:
   replicas: {{ .Values.agent.replicas }}
   selector:
@@ -19,6 +18,7 @@ spec:
     metadata:
       annotations:
         checksum/docker-login: {{ include (print $.Template.BasePath "/docker-login.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
         checksum/datadog-config: {{ include (print $.Template.BasePath "/datadog-configmap.yaml") . | sha256sum }}
         ad.datadoghq.com/{{ include "entitle-agent.fullname" . }}.logs: '[{"source": "{{ include "entitle-agent.fullname" . }}"}]'
       {{- with .Values.podAnnotations }}
@@ -26,11 +26,14 @@ spec:
       {{- end }}
       labels:
         app: {{ include "entitle-agent.fullname" . }}
+        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
         environment: {{ .Values.global.environment }}
         tags.datadoghq.com/env: {{ .Values.global.environment }}
         tags.datadoghq.com/service: {{ include "entitle-agent.fullname" . }}-{{ .Values.global.environment }}
-        tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" .}}
-        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+        tags.datadoghq.com/version: {{ include "entitle-agent.imageTag" . }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- if eq .Values.platform.mode "azure" }}
         azure.workload.identity/use: "true"
         {{- end }}
@@ -62,8 +65,8 @@ spec:
         - name: ENTITLE_JSON_CONFIGURATION
           valueFrom:
             secretKeyRef:
-              name: {{ include "entitle-agent.fullname" . }}-secret
-              key: ENTITLE_JSON_CONFIGURATION
+              name: {{ include "entitle-agent.agentSecretName" . }}
+              key: {{ include "entitle-agent.agentSecretKey" . }}
               optional: false
         {{- if eq .Values.platform.mode "azure" }}
         - name: AZURE_KEY_VAULT_NAME
@@ -117,7 +120,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: {{ include "entitle-agent.fullname" . }}-datadog-secret
-                key: DD_API_KEY
+                key: api-key
           - name: DD_TAGS
             value: {{.Values.datadog.datadog.tags | quote}}
           - name: DD_HOSTNAME
@@ -141,8 +144,11 @@ spec:
             mountPath: /var/log/entitle-agent
             readOnly: true
       {{- end }}
+      {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
+      {{- if or .Values.imagePullSecret.name $imageCreds .Values.agent.secretRef.name }}
       imagePullSecrets:
-        - name: {{ include "entitle-agent.fullname" . }}-docker-login
+        - name: {{ include "entitle-agent.imagePullSecretName" . }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
