@@ -203,9 +203,9 @@ fi
 echo ""
 
 # ==========================================================================
-# TEST 2: SecretRef only (hook extracts everything)
+# TEST 2: SecretRef (lookup extracts imageCredentials from pre-existing secret)
 # ==========================================================================
-info "TEST 2: SecretRef only (hook extracts imageCredentials + datadogApiKey)"
+info "TEST 2: SecretRef (chart extracts imageCredentials via lookup)"
 cleanup
 kubectl create namespace "$NAMESPACE"
 
@@ -218,12 +218,11 @@ helm install "$RELEASE" "./$CHART_DIR" \
   -f "${CI_DIR}/test-secretref-only.yaml" \
   -n "$NAMESPACE" --wait=false
 
-# Verify hook-created secrets
-sleep 10  # give hook time to run
+# Verify chart created docker-login via lookup (extracted from token in pre-existing secret)
 if check_secret_exists "entitle-agent-docker-login"; then
-  pass "Test 2: docker-login secret created by hook"
+  pass "Test 2: docker-login secret created (extracted via lookup)"
 else
-  fail "Test 2: docker-login secret NOT created by hook"
+  fail "Test 2: docker-login secret NOT created"
 fi
 
 # Verify the chart did NOT create entitle-agent-secret (no token in values)
@@ -240,9 +239,9 @@ else
   fail "Test 2: agent pod NOT running"
 fi
 
-# Verify imagePullSecrets references the hook-created secret
+# Verify imagePullSecrets references the chart-created docker-login
 if check_deployment_image_pull_secret "entitle-agent-docker-login"; then
-  pass "Test 2: imagePullSecrets correct (hook-created)"
+  pass "Test 2: imagePullSecrets correct"
 else
   fail "Test 2: imagePullSecrets incorrect"
 fi
@@ -250,7 +249,7 @@ fi
 echo ""
 
 # ==========================================================================
-# TEST 3: SecretRef + own registry (hook extracts datadogApiKey only)
+# TEST 3: SecretRef + own registry (user provides imagePullSecret.name)
 # ==========================================================================
 info "TEST 3: SecretRef + own registry (user provides imagePullSecret)"
 cleanup
@@ -271,12 +270,11 @@ helm install "$RELEASE" "./$CHART_DIR" \
   -f "${CI_DIR}/test-secretref-registry.yaml" \
   -n "$NAMESPACE" --wait=false
 
-# Verify the hook did NOT create docker-login (user provides own)
-sleep 10
+# Verify chart did NOT create docker-login (imagePullSecret.name is set — user manages their own)
 if ! check_secret_exists "entitle-agent-docker-login"; then
-  pass "Test 3: no hook-created docker-login (user provides own registry secret)"
+  pass "Test 3: no docker-login created (user provides own registry secret)"
 else
-  fail "Test 3: hook-created docker-login exists unexpectedly"
+  fail "Test 3: docker-login exists unexpectedly"
 fi
 
 # Verify pod comes up

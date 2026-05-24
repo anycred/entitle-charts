@@ -1,12 +1,12 @@
 {{/*
 Docker registry login secret.
-Priority chain for image pull credentials:
-  1. imagePullSecret.existingSecret — reference a pre-existing Secret (for GitOps/ESO)
-  2. imageCredentials (explicit) — override value passed via --set
-  3. Auto-extracted from agent.token blob — the token contains imageCredentials inside it
-If none of the above are set, no docker-login Secret is created and imagePullSecrets
-is omitted from the Deployment (useful when nodes already have registry access).
+Skipped when imagePullSecret.name is set (user manages their own).
+Otherwise resolves imageCredentials from:
+  1. imageCredentials value (explicit --set)
+  2. agent.token blob (auto-extracted)
+  3. agent.secretRef secret (via Helm lookup at deploy time)
 */}}
+{{- if not .Values.imagePullSecret.name -}}
 {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
 {{- if $imageCreds }}
 apiVersion: v1
@@ -18,4 +18,5 @@ metadata:
 data:
   .dockerconfigjson: {{ $imageCreds | quote }}
 type: kubernetes.io/dockerconfigjson
+{{- end }}
 {{- end }}
