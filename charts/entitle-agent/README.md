@@ -21,8 +21,6 @@ If you're upgrading from v1.x:
 
 ## Installation Scenarios
 
-The chart supports four installation scenarios. **The minimum required is 1 value.**
-
 ### Scenario 1 — Simple Install (Recommended)
 
 Just pass the agent token blob. The chart auto-extracts `imageCredentials` and `datadogApiKey` from it.
@@ -35,19 +33,25 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
 
 > `kmsType` defaults to `kubernetes_secret_manager` — only set it if you need a different KMS (e.g., `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`).
 
-### Scenario 2 — Pre-existing Secret (Single Value)
+### Scenario 2 — Pre-existing Secrets (GitOps / External Secrets)
 
-Reference a pre-existing Kubernetes Secret. A pre-install hook automatically extracts `imageCredentials` and `datadogApiKey` from the token inside the Secret — no additional configuration needed.
+For GitOps workflows where secrets are managed outside Helm. All referenced secrets **must exist before** the chart is deployed.
 
-**Step 1 — Create the Secret:**
+**Step 1 — Create the secrets:**
 
 ```bash
+# Agent token secret
 kubectl create secret generic entitle-agent-token \
   --from-literal=ENTITLE_JSON_CONFIGURATION='{"BASE64_CONFIGURATION":"<your-token>"}' \
   -n entitle
+
+# Image pull secret (extract from the token blob)
+kubectl create secret docker-registry entitle-agent-registry \
+  --from-file=.dockerconfigjson=<(echo "<your-token>" | base64 -d | jq -r .imageCredentials | base64 -d) \
+  -n entitle
 ```
 
-Or as YAML:
+Or as YAML (for External Secrets Operator, Sealed Secrets, etc.):
 
 ```yaml
 apiVersion: v1
@@ -57,30 +61,29 @@ metadata:
   namespace: entitle
 stringData:
   ENTITLE_JSON_CONFIGURATION: '{"BASE64_CONFIGURATION":"<your-token>"}'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: entitle-agent-registry
+  namespace: entitle
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: <base64-encoded-dockerconfigjson>
 ```
 
-This works with any secret management tool — External Secrets Operator, Sealed Secrets, HashiCorp Vault, or plain `kubectl`.
+> **Important:** When using `agent.secretRef`, both the agent token secret AND the image pull secret must exist in the namespace before deploying the chart. If you use a tool like External Secrets Operator, ensure the ExternalSecret resources are deployed and reconciled before the chart. In a wrapper chart, use Helm pre-install hooks on the ExternalSecrets to guarantee ordering.
 
 **Step 2 — Install the chart:**
 
 ```bash
 helm upgrade --install entitle-agent entitle/entitle-agent \
   --set agent.secretRef.name="entitle-agent-token" \
+  --set imagePullSecret.name="entitle-agent-registry" \
   -n entitle --create-namespace
 ```
 
-### Scenario 3 — Pre-existing Secret + Own Registry
-
-If you manage your own image pull secret separately:
-
-```bash
-helm upgrade --install entitle-agent entitle/entitle-agent \
-  --set agent.secretRef.name="entitle-agent-token" \
-  --set imagePullSecret.name="my-registry-secret" \
-  -n entitle --create-namespace
-```
-
-### Scenario 4 — Explicit Override (Backwards-Compatible)
+### Scenario 3 — Explicit Override (Backwards-Compatible)
 
 If you have existing automation that passes credentials explicitly, this still works:
 
