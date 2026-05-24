@@ -1,0 +1,96 @@
+{{/*
+Pre-install/upgrade hook Job: reads the secretRef token, extracts
+imageCredentials + datadogApiKey, and patches the placeholder secrets
+(docker-login.yaml and datadog-secret.yaml) with real values.
+
+Only runs when agent.secretRef.name is set and agent.token is not provided.
+The referenced secret must exist before the chart is deployed.
+*/}}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
+{{- if and .Values.agent.secretRef.name (not $hasToken) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "entitle-agent.fullname" . }}-extract-pull-secret
+  labels:
+    {{- include "entitle-agent.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "entitle-agent.fullname" . }}-hook
+      restartPolicy: Never
+      containers:
+      - name: extract
+        image: bitnami/kubectl:latest
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -e
+
+          NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+
+          echo "Reading token from secret {{ .Values.agent.secretRef.name }}"
+
+          # Read the token JSON from the mounted secret file
+          TOKEN_JSON=$(cat "/secret/{{ include "entitle-agent.agentSecretKey" . }}")
+
+          # Unwrap BASE64_CONFIGURATION to get the raw token blob
+          B64_CONFIG=$(echo "$TOKEN_JSON" | sed 's/.*BASE64_CONFIGURATION":"\([^"]*\).*/\1/')
+
+          if [ -z "$B64_CONFIG" ] || [ "$B64_CONFIG" = "$TOKEN_JSON" ]; then
+            echo "ERROR: Could not extract BASE64_CONFIGURATION from secret"
+            exit 1
+          fi
+
+          # Decode to get the full token JSON
+          FULL_TOKEN=$(echo "$B64_CONFIG" | base64 -d)
+
+          # --- Patch docker-login secret ---
+          {{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
+          {{- if not (or .Values.imagePullSecret.name $hasImageCreds) }}
+          IMAGE_CREDS=$(echo "$FULL_TOKEN" | sed 's/.*"imageCredentials":"\([^"]*\)".*/\1/')
+
+          if [ -n "$IMAGE_CREDS" ] && [ "$IMAGE_CREDS" != "$FULL_TOKEN" ]; then
+            echo "Patching docker-login secret with extracted imageCredentials"
+            kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
+              -n "$NAMESPACE" \
+              --type merge \
+              -p "{\"data\":{\".dockerconfigjson\":\"${IMAGE_CREDS}\"}}"
+          else
+            echo "WARNING: No imageCredentials found in token."
+          fi
+          {{- else }}
+          echo "Skipping docker-login (imagePullSecret.name or imageCredentials provided)"
+          {{- end }}
+
+          # --- Patch datadog secret ---
+          DD_API_KEY=$(echo "$FULL_TOKEN" | sed 's/.*"datadogApiKey":"\([^"]*\)".*/\1/')
+
+          if [ -n "$DD_API_KEY" ] && [ "$DD_API_KEY" != "$FULL_TOKEN" ]; then
+            echo "Patching datadog secret with extracted datadogApiKey"
+            kubectl patch secret "{{ include "entitle-agent.fullname" . }}-datadog-secret" \
+              -n "$NAMESPACE" \
+              --type merge \
+              -p "{\"stringData\":{\"api-key\":\"${DD_API_KEY}\"}}"
+          else
+            echo "WARNING: No datadogApiKey found in token."
+          fi
+
+          echo "Done."
+        volumeMounts:
+        - name: token-secret
+          mountPath: /secret
+          readOnly: true
+      volumes:
+      - name: token-secret
+        secret:
+          secretName: {{ .Values.agent.secretRef.name }}
+{{- end }}
