@@ -115,46 +115,21 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves the raw token blob (base64-encoded JSON) from either:
-     1. agent.token value (simple install path)
-     2. lookup of agent.secretRef.name secret (GitOps path — reads the pre-existing secret at render time)
-     The lookup only works during helm install/upgrade (not helm template). */}}
-{{- define "entitle-agent.resolveTokenBlob" -}}
-  {{- $token := include "entitle-agent.getToken" . -}}
-  {{- if $token -}}
-    {{- $token -}}
-  {{- else if .Values.agent.secretRef.name -}}
-    {{- $secret := lookup "v1" "Secret" .Release.Namespace .Values.agent.secretRef.name -}}
-    {{- if $secret -}}
-      {{- $key := include "entitle-agent.agentSecretKey" . -}}
-      {{- if hasKey $secret.data $key -}}
-        {{- $tokenJson := index $secret.data $key | b64dec -}}
-        {{- if hasPrefix "{" $tokenJson -}}
-          {{- $configJson := $tokenJson | fromJson -}}
-          {{- if hasKey $configJson "BASE64_CONFIGURATION" -}}
-            {{- $configJson.BASE64_CONFIGURATION -}}
-          {{- end -}}
-        {{- end -}}
-      {{- end -}}
-    {{- end -}}
-  {{- end -}}
-{{- end -}}
-
-{{/* Resolves datadogApiKey: explicit value > extract from token > lookup from secretRef */}}
+{{/* Resolves datadogApiKey: --set datadog.datadog.apiKey takes priority, otherwise extract from token */}}
 {{- define "entitle-agent.datadogApiKey" -}}
   {{- if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
     {{- .Values.datadog.datadog.apiKey -}}
   {{- else -}}
-    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.resolveTokenBlob" .) "field" "datadogApiKey") -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "datadogApiKey") -}}
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves imageCredentials: explicit value > extract from token > lookup from secretRef */}}
+{{/* Resolves imageCredentials: --set imageCredentials takes priority, otherwise extract from token */}}
 {{- define "entitle-agent.imageCredentials" -}}
   {{- if and .Values.imageCredentials (ne .Values.imageCredentials "") (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
     {{- .Values.imageCredentials -}}
   {{- else -}}
-    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.resolveTokenBlob" .) "field" "imageCredentials") -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "imageCredentials") -}}
   {{- end -}}
 {{- end -}}
 

@@ -35,11 +35,9 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
 
 > `kmsType` defaults to `kubernetes_secret_manager` — only set it if you need a different KMS (e.g., `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`).
 
-### Scenario 2 — Pre-existing Secret (GitOps / External Secrets)
+### Scenario 2 — Pre-existing Secret (Single Value)
 
-Reference a pre-existing Kubernetes Secret. The chart reads the secret at deploy time using Helm `lookup`, extracts `imageCredentials` and `datadogApiKey`, and creates the docker-login and Datadog secrets as regular chart resources — fully tracked by ArgoCD.
-
-> **Important:** The referenced secret must exist in the namespace **before** deploying the chart. If you use External Secrets Operator, ensure the ExternalSecret is deployed and reconciled first (e.g., via a Helm pre-install hook in a wrapper chart, or a separate ArgoCD Application).
+Reference a pre-existing Kubernetes Secret. A pre-install hook automatically extracts `imageCredentials` and `datadogApiKey` from the token inside the Secret — no additional configuration needed.
 
 **Step 1 — Create the Secret:**
 
@@ -49,7 +47,7 @@ kubectl create secret generic entitle-agent-token \
   -n entitle
 ```
 
-Or as YAML (for External Secrets Operator, Sealed Secrets, etc.):
+Or as YAML:
 
 ```yaml
 apiVersion: v1
@@ -61,6 +59,8 @@ stringData:
   ENTITLE_JSON_CONFIGURATION: '{"BASE64_CONFIGURATION":"<your-token>"}'
 ```
 
+This works with any secret management tool — External Secrets Operator, Sealed Secrets, HashiCorp Vault, or plain `kubectl`.
+
 **Step 2 — Install the chart:**
 
 ```bash
@@ -69,11 +69,18 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   -n entitle --create-namespace
 ```
 
-The chart automatically extracts and creates:
-- `entitle-agent-docker-login` (image pull credentials)
-- `entitle-agent-datadog-secret` (Datadog API key)
+### Scenario 3 — Pre-existing Secret + Own Registry
 
-### Scenario 3 — Explicit Override (Backwards-Compatible)
+If you manage your own image pull secret separately:
+
+```bash
+helm upgrade --install entitle-agent entitle/entitle-agent \
+  --set agent.secretRef.name="entitle-agent-token" \
+  --set imagePullSecret.name="my-registry-secret" \
+  -n entitle --create-namespace
+```
+
+### Scenario 4 — Explicit Override (Backwards-Compatible)
 
 If you have existing automation that passes credentials explicitly, this still works:
 
