@@ -203,9 +203,9 @@ fi
 echo ""
 
 # ==========================================================================
-# TEST 2: SecretRef (lookup extracts imageCredentials from pre-existing secret)
+# TEST 2: SecretRef (hook extracts credentials from pre-existing token secret)
 # ==========================================================================
-info "TEST 2: SecretRef (chart extracts imageCredentials via lookup)"
+info "TEST 2: SecretRef (hook extracts imageCredentials + datadogApiKey)"
 cleanup
 kubectl create namespace "$NAMESPACE"
 
@@ -214,13 +214,14 @@ kubectl create secret generic entitle-agent-ci-token \
   --from-literal=ENTITLE_JSON_CONFIGURATION="{\"BASE64_CONFIGURATION\":\"${ENTITLE_AGENT_TOKEN}\"}" \
   -n "$NAMESPACE"
 
+# helm install runs the hook (creates placeholder secrets, then Job patches them)
 helm install "$RELEASE" "./$CHART_DIR" \
   -f "${CI_DIR}/test-secretref-only.yaml" \
-  -n "$NAMESPACE" --wait=false
+  -n "$NAMESPACE"
 
-# Verify chart created docker-login via lookup (extracted from token in pre-existing secret)
+# Verify hook created and patched docker-login
 if check_secret_exists "entitle-agent-docker-login"; then
-  pass "Test 2: docker-login secret created (extracted via lookup)"
+  pass "Test 2: docker-login secret created by hook"
 else
   fail "Test 2: docker-login secret NOT created"
 fi
@@ -239,7 +240,7 @@ else
   fail "Test 2: agent pod NOT running"
 fi
 
-# Verify imagePullSecrets references the chart-created docker-login
+# Verify imagePullSecrets references docker-login
 if check_deployment_image_pull_secret "entitle-agent-docker-login"; then
   pass "Test 2: imagePullSecrets correct"
 else
@@ -268,7 +269,7 @@ kubectl create secret docker-registry entitle-agent-ci-registry \
 
 helm install "$RELEASE" "./$CHART_DIR" \
   -f "${CI_DIR}/test-secretref-registry.yaml" \
-  -n "$NAMESPACE" --wait=false
+  -n "$NAMESPACE"
 
 # Verify chart did NOT create docker-login (imagePullSecret.name is set — user manages their own)
 if ! check_secret_exists "entitle-agent-docker-login"; then

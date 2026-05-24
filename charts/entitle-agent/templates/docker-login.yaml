@@ -1,22 +1,33 @@
 {{/*
 Docker registry login secret.
-Skipped when imagePullSecret.name is set (user manages their own).
-Otherwise resolves imageCredentials from:
-  1. imageCredentials value (explicit --set)
-  2. agent.token blob (auto-extracted)
-  3. agent.secretRef secret (via Helm lookup at deploy time)
+- Token path: created with real imageCredentials extracted at render time.
+- SecretRef path: created as placeholder (pre-install hook), then patched by
+  the extract Job with real values from the token secret.
+- Skipped when imagePullSecret.name is set (user manages their own).
 */}}
+{{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") }}
 {{- if not .Values.imagePullSecret.name -}}
 {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
-{{- if $imageCreds }}
+{{- if or $imageCreds .Values.agent.secretRef.name }}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ include "entitle-agent.fullname" . }}-docker-login
   labels:
     {{- include "entitle-agent.labels" . | nindent 4 }}
-data:
-  .dockerconfigjson: {{ $imageCreds | quote }}
+  {{- if and .Values.agent.secretRef.name (not $hasToken) }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
 type: kubernetes.io/dockerconfigjson
+data:
+  {{- if $imageCreds }}
+  .dockerconfigjson: {{ $imageCreds | quote }}
+  {{- else }}
+  .dockerconfigjson: eyJhdXRocyI6e319
+  {{- end }}
 {{- end }}
 {{- end }}
