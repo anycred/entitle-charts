@@ -115,7 +115,7 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves datadogApiKey: --set datadog.datadog.apiKey takes priority, otherwise extract from token */}}
+{{/* Resolves datadogApiKey: explicit value > extract from agent.token */}}
 {{- define "entitle-agent.datadogApiKey" -}}
   {{- if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
     {{- .Values.datadog.datadog.apiKey -}}
@@ -124,7 +124,7 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves imageCredentials: --set imageCredentials takes priority, otherwise extract from token */}}
+{{/* Resolves imageCredentials: explicit value > extract from agent.token */}}
 {{- define "entitle-agent.imageCredentials" -}}
   {{- if and .Values.imageCredentials (ne .Values.imageCredentials "") (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") -}}
     {{- .Values.imageCredentials -}}

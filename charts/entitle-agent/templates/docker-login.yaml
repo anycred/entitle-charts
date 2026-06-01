@@ -1,21 +1,33 @@
 {{/*
 Docker registry login secret.
-Priority chain for image pull credentials:
-  1. imagePullSecret.existingSecret — reference a pre-existing Secret (for GitOps/ESO)
-  2. imageCredentials (explicit) — override value passed via --set
-  3. Auto-extracted from agent.token blob — the token contains imageCredentials inside it
-If none of the above are set, no docker-login Secret is created and imagePullSecrets
-is omitted from the Deployment (useful when nodes already have registry access).
+- Token path: created with real imageCredentials extracted at render time.
+- SecretRef path: created as placeholder (pre-install hook), then patched by
+  the extract Job with real values from the token secret.
+- Skipped when imagePullSecret.name is set (user manages their own).
 */}}
+{{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") }}
+{{- if not .Values.imagePullSecret.name -}}
 {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
-{{- if $imageCreds }}
+{{- if or $imageCreds .Values.agent.secretRef.name }}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ include "entitle-agent.fullname" . }}-docker-login
   labels:
     {{- include "entitle-agent.labels" . | nindent 4 }}
-data:
-  .dockerconfigjson: {{ $imageCreds | quote }}
+  {{- if and .Values.agent.secretRef.name (not $hasToken) }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
 type: kubernetes.io/dockerconfigjson
+data:
+  {{- if $imageCreds }}
+  .dockerconfigjson: {{ $imageCreds | quote }}
+  {{- else }}
+  .dockerconfigjson: eyJhdXRocyI6e319
+  {{- end }}
+{{- end }}
 {{- end }}

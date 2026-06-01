@@ -1,0 +1,20 @@
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
+{{- if and .Values.agent.secretRef.name (not $hasToken) }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "entitle-agent.fullname" . }}-hook
+  labels:
+    {{- include "entitle-agent.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "entitle-agent.fullname" . }}-hook
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "entitle-agent.fullname" . }}-hook
+{{- end }}
