@@ -38,75 +38,10 @@ spec:
         azure.workload.identity/use: "true"
         {{- end }}
     spec:
-      containers:
-      - env:
-        # Token extracted values (decoded from agent.token base64 JSON)
-        - name: ENTITLE_ROUTING_VERSION
-          value: {{ include "entitle-agent.extractedRouting" . | quote }}
-        - name: ENTITLE_PLATFORM
-          value: {{ include "entitle-agent.extractedPlatform" . | quote }}
-        - name: ENTITLE_PROXY_URL
-          value: {{ include "entitle-agent.proxyUrl" . | quote }}
-        - name: ENTITLE_MAX_ROUTING_VERSION
-          value: "v1"
-        {{- if eq .Values.kmsType "hashicorp_vault" }}
-        - name: HASHICORP_VAULT_CONNECTION_STRING
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "entitle-agent.fullname" . }}-hashicorp-vault-secret
-              key: HASHICORP_VAULT_CONNECTION_STRING
-        {{- end }}
-        - name: ENTITLE_KMS_TYPE
-          value: {{ .Values.kmsType }}
-        {{- if .Values.agent.kafka.bootstrapServers }}
-        - name: ENTITLE_KAFKA_BOOTSTRAP_SERVERS
-          value: {{ .Values.agent.kafka.bootstrapServers }}
-        {{- end }}
-        - name: ENTITLE_JSON_CONFIGURATION
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "entitle-agent.agentSecretName" . }}
-              key: {{ include "entitle-agent.agentSecretKey" . }}
-              optional: false
-        {{- if eq .Values.platform.mode "azure" }}
-        - name: AZURE_KEY_VAULT_NAME
-          value: {{ .Values.platform.azure.keyVaultName }}
-        {{- end }}
-        {{- if not .Values.datadog.enabled }}
-        - name: ENTITLE_LOG_TO_FILE
-          value: "true"
-        {{- end }}
-        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
-        imagePullPolicy: Always
-        name: {{ include "entitle-agent.fullname" . }}
-        {{- with .Values.agent.resources }}
-        resources:
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
-        {{- if not .Values.datadog.enabled }}
-        volumeMounts:
-          - mountPath: /var/log/entitle-agent
-            name: entitle-agent-logs
-        {{- end }}
-        startupProbe:
-          exec:
-            command:
-              - python
-              - scripts/healthcheck/healthcheck.py
-          timeoutSeconds: 30
-        livenessProbe:
-          exec:
-            command:
-              - python
-              - /src/liveness_check/liveness_check.py
-          failureThreshold: 1
-          initialDelaySeconds: 20
-          periodSeconds: 60
-          successThreshold: 1
-          timeoutSeconds: 10
-      {{- if and ( not .Values.datadog.enabled )  .Values.datadog.sidecarLogs }}
-      # Datadog sidecar mode
       initContainers:
+      {{- if and ( not .Values.datadog.enabled )  .Values.datadog.sidecarLogs }}
+      # Datadog native sidecar — starts first, stays running to collect logs
+      # from the healthcheck init container and the main agent container.
       - name: datadog-agent
         image: gcr.io/datadoghq/agent:latest
         imagePullPolicy: Always
@@ -144,6 +79,50 @@ spec:
             mountPath: /var/log/entitle-agent
             readOnly: true
       {{- end }}
+      # Healthcheck validators must exit 0 before the main agent container starts.
+      # This guarantees the agent never consumes Kafka messages in an invalid state.
+      - name: {{ include "entitle-agent.fullname" . }}-healthcheck
+        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: Always
+        command:
+          - python
+          - scripts/healthcheck/healthcheck.py
+        env:
+        {{- include "entitle-agent.agentEnv" . | nindent 8 }}
+        {{- with .Values.agent.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- if not .Values.datadog.enabled }}
+        volumeMounts:
+          - mountPath: /var/log/entitle-agent
+            name: entitle-agent-logs
+        {{- end }}
+      containers:
+      - name: {{ include "entitle-agent.fullname" . }}
+        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: Always
+        env:
+        {{- include "entitle-agent.agentEnv" . | nindent 8 }}
+        {{- with .Values.agent.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- if not .Values.datadog.enabled }}
+        volumeMounts:
+          - mountPath: /var/log/entitle-agent
+            name: entitle-agent-logs
+        {{- end }}
+        livenessProbe:
+          exec:
+            command:
+              - python
+              - /src/liveness_check/liveness_check.py
+          failureThreshold: 1
+          initialDelaySeconds: 20
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 10
       {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
       {{- if or .Values.imagePullSecret.name $imageCreds .Values.agent.secretRef.name }}
       imagePullSecrets:

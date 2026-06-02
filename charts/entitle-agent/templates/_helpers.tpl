@@ -195,3 +195,45 @@ Returns imagePullSecret.name if set, otherwise the chart-managed docker-login se
 {{- include "entitle-agent.fullname" . }}-docker-login
 {{- end -}}
 {{- end }}
+
+{{/*
+Agent container env block — shared between the main agent container and the
+healthcheck init container so validators run with identical configuration.
+*/}}
+{{- define "entitle-agent.agentEnv" -}}
+- name: ENTITLE_ROUTING_VERSION
+  value: {{ include "entitle-agent.extractedRouting" . | quote }}
+- name: ENTITLE_PLATFORM
+  value: {{ include "entitle-agent.extractedPlatform" . | quote }}
+- name: ENTITLE_PROXY_URL
+  value: {{ include "entitle-agent.proxyUrl" . | quote }}
+- name: ENTITLE_MAX_ROUTING_VERSION
+  value: "v1"
+{{- if eq .Values.kmsType "hashicorp_vault" }}
+- name: HASHICORP_VAULT_CONNECTION_STRING
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "entitle-agent.fullname" . }}-hashicorp-vault-secret
+      key: HASHICORP_VAULT_CONNECTION_STRING
+{{- end }}
+- name: ENTITLE_KMS_TYPE
+  value: {{ .Values.kmsType }}
+{{- if .Values.agent.kafka.bootstrapServers }}
+- name: ENTITLE_KAFKA_BOOTSTRAP_SERVERS
+  value: {{ .Values.agent.kafka.bootstrapServers }}
+{{- end }}
+- name: ENTITLE_JSON_CONFIGURATION
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "entitle-agent.agentSecretName" . }}
+      key: {{ include "entitle-agent.agentSecretKey" . }}
+      optional: false
+{{- if eq .Values.platform.mode "azure" }}
+- name: AZURE_KEY_VAULT_NAME
+  value: {{ .Values.platform.azure.keyVaultName }}
+{{- end }}
+{{- if not .Values.datadog.enabled }}
+- name: ENTITLE_LOG_TO_FILE
+  value: "true"
+{{- end }}
+{{- end }}
