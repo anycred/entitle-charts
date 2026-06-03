@@ -84,7 +84,7 @@ spec:
       # Healthcheck validators must exit 0 before the main agent container starts.
       # This guarantees the agent never consumes Kafka messages in an invalid state.
       - name: {{ include "entitle-agent.fullname" . }}-healthcheck
-        image: {{ .Values.agent.image.repository }}:{{ include "entitle-agent.resolvedImageTag" . }}
+        image: {{ include "entitle-agent.imageRef" . }}
         imagePullPolicy: Always
         command:
           - python
@@ -102,7 +102,7 @@ spec:
         {{- end }}
       containers:
       - name: {{ include "entitle-agent.fullname" . }}
-        image: {{ .Values.agent.image.repository }}:{{ include "entitle-agent.resolvedImageTag" . }}
+        image: {{ include "entitle-agent.imageRef" . }}
         imagePullPolicy: Always
         env:
         {{- include "entitle-agent.agentEnv" . | nindent 8 }}

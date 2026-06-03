@@ -133,6 +133,38 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
+{{/* Registry host the image is pulled from — derived from the pull credentials.
+     The dockerconfigjson auths key IS the registry host, so taking it from there
+     keeps the image host and the credential host in lock-step: they come from one
+     source and can never drift. Empty when no credentials are available, in which
+     case the host already in agent.image.repository is used. */}}
+{{- define "entitle-agent.imageRegistry" -}}
+  {{- $creds := include "entitle-agent.imageCredentials" . -}}
+  {{- if $creds -}}
+    {{- $decoded := $creds | b64dec -}}
+    {{- if hasPrefix "{" $decoded -}}
+      {{- $auths := (($decoded | fromJson).auths) | default dict -}}
+      {{- $hosts := keys $auths -}}
+      {{- if $hosts -}}{{- first $hosts -}}{{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Composes the agent image reference. The registry host comes from the pull
+     credentials when present (so it always matches the host that owns the
+     credential); otherwise agent.image.repository is used verbatim. The path
+     segment always comes from agent.image.repository; the tag from resolvedImageTag. */}}
+{{- define "entitle-agent.imageRef" -}}
+  {{- $repo := .Values.agent.image.repository -}}
+  {{- $reg := include "entitle-agent.imageRegistry" . -}}
+  {{- if $reg -}}
+    {{- $parts := splitn "/" 2 $repo -}}
+    {{- $path := index $parts "_1" | default (index $parts "_0") -}}
+    {{- $repo = printf "%s/%s" $reg $path -}}
+  {{- end -}}
+  {{- printf "%s:%s" $repo (include "entitle-agent.resolvedImageTag" .) -}}
+{{- end -}}
+
 {{/*
 Validates that the credentials needed for a working deployment can be resolved at
 render time, and fails helm install/upgrade with an actionable message if not.
