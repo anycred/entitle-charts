@@ -1,3 +1,4 @@
+{{- include "entitle-agent.validateAgentVersion" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -82,7 +83,7 @@ spec:
       # Healthcheck validators must exit 0 before the main agent container starts.
       # This guarantees the agent never consumes Kafka messages in an invalid state.
       - name: {{ include "entitle-agent.fullname" . }}-healthcheck
-        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+        image: {{ .Values.agent.image.repository }}:{{ include "entitle-agent.resolvedImageTag" . }}
         imagePullPolicy: Always
         command:
           - python
@@ -100,7 +101,7 @@ spec:
         {{- end }}
       containers:
       - name: {{ include "entitle-agent.fullname" . }}
-        image: {{ .Values.agent.image.repository }}:{{ .Values.agent.image.tag | default .Chart.AppVersion }}
+        image: {{ .Values.agent.image.repository }}:{{ include "entitle-agent.resolvedImageTag" . }}
         imagePullPolicy: Always
         env:
         {{- include "entitle-agent.agentEnv" . | nindent 8 }}
