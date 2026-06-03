@@ -135,6 +135,9 @@ apply_egress_policy() {
   for ip in "$@"; do
     ip_rules+="        - ipBlock: { cidr: ${ip}/32 }"$'\n'
   done
+  # Strip the trailing newline here (in normal shell context); $'\n' is NOT
+  # ANSI-C-expanded inside the heredoc below, so the strip must happen first.
+  local ip_rules_trimmed="${ip_rules%$'\n'}"
   kubectl apply -n "$NAMESPACE" -f - <<EOF
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -152,7 +155,7 @@ spec:
         - ipBlock: { cidr: 192.168.0.0/16 }
     # External egress ONLY to the QA proxy, on the proxy port.
     - to:
-${ip_rules%$'\n'}
+${ip_rules_trimmed}
       ports:
         - protocol: TCP
           port: ${PROXY_PORT}
@@ -193,7 +196,7 @@ run_scenario_b() {
   kubectl create namespace "$NAMESPACE"
 
   local proxy_host ips first_ip
-  proxy_host=$(derive_proxy_host)
+  proxy_host=$(derive_proxy_host) || { fail "Scenario B: could not derive proxy host from token"; return; }
   info "Proxy host (from token platform): ${proxy_host}"
 
   ips=$( { resolve_ips "$proxy_host"; echo "$EXTRA_PROXY_IP"; } | grep -E '^[0-9]+\.' | sort -u )
@@ -202,7 +205,8 @@ run_scenario_b() {
     return
   fi
   first_ip=$(echo "$ips" | head -n1)
-  info "Allowing external egress on :${PROXY_PORT} to:"; while IFS= read -r _ip; do echo "    ${_ip}"; done <<< "$ips"
+  info "Allowing external egress on :${PROXY_PORT} to:"
+  while IFS= read -r _ip; do echo "    ${_ip}"; done <<< "$ips"
 
   # shellcheck disable=SC2086
   apply_egress_policy $ips
