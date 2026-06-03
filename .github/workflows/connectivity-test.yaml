@@ -11,9 +11,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 3 * * *"   # nightly 03:00 UTC
-  # To also run on chart PRs, add:
-  # pull_request:
-  #   paths: [ 'charts/entitle-agent/**', '.github/workflows/connectivity-test.yaml' ]
+  pull_request:
+    paths:
+      - 'charts/entitle-agent/**'
+      - '.github/workflows/connectivity-test.yaml'
 
 permissions:
   contents: read
