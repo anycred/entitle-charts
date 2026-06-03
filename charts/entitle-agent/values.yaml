@@ -97,6 +97,11 @@ agent:
     key: "ENTITLE_JSON_CONFIGURATION"     # Key within the Secret (override if your secret uses a different key)
 
   image:
+    # -- repository: image path. The registry host is taken from the pull
+    # credentials (imageCredentials / token) so the image is always pulled from
+    # the same host that owns the credential — e.g. pulling through the Entitle
+    # proxy only requires credentials keyed to the proxy host, the image follows.
+    # The host below is used only when no credentials are available. DOPS-678.
     repository: ghcr.io/anycred/entitle-agent  # Docker image repository
     tag: latest            # Tag for the agent image; defaults to Chart.appVersion if empty
 
