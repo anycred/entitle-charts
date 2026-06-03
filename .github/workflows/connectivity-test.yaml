@@ -47,12 +47,14 @@ jobs:
           helm repo update
           helm dependency build charts/entitle-agent
 
-      - name: Start minikube with Calico CNI
-        uses: medyagh/setup-minikube@cea33675329b799adccc9526aa5daccc26cd5052 # v0.0.19
-        with:
-          cni: calico
-          cpus: max
-          memory: max
+      # minikube is installed via a run step rather than the medyagh/setup-minikube
+      # action because this org enforces an allowed-actions policy that doesn't
+      # include that action. kubectl is pre-installed on the GitHub runner.
+      - name: Install and start minikube with Calico CNI
+        run: |
+          curl -fsSL https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 -o minikube
+          sudo install minikube /usr/local/bin/minikube && rm minikube
+          minikube start --driver=docker --cni=calico --cpus=2 --memory=4096 --wait=all
 
       - name: Wait for Calico to be ready
         run: |
