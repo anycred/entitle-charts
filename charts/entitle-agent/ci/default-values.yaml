@@ -10,9 +10,12 @@
 # =============================================================================
 
 agent:
-  # Dummy token: decodes to {"test":"test"} — no real credentials.
+  # Dummy token: decodes to {"test":"test","imageCredentials":"e30="} — no real credentials.
+  # imageCredentials must be present so the chart's render-time credential validator
+  # (entitle-agent.validateRequiredCredentials) passes during `ct lint`. datadog.enabled
+  # is false below, so a datadogApiKey is not required.
   # Chart creates the agent secret but pods stay Pending (expected).
-  token: "eyJ0ZXN0IjoidGVzdCJ9"
+  token: "eyJ0ZXN0IjoidGVzdCIsImltYWdlQ3JlZGVudGlhbHMiOiJlMzA9In0="
   image:
     repository: busybox
     tag: latest

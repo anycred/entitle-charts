@@ -8,7 +8,10 @@ icon: https://app.entitle.io/favicon.ico
 # kmsType defaults to kubernetes_secret_manager, token/imageCredentials no longer required).
 # GCP platform field renamed from platform.gke to platform.gcp.
 # See DOPS-434 for full changelog.
-version: 2.4.0
+# v2.5.0 (ICH-4992): fail helm install/upgrade with a clear message when imageCredentials
+# or datadogApiKey cannot be resolved from agent.token or explicit values, instead of
+# deploying into a broken state.
+version: 2.5.0
 appVersion: "1.0.0"
 
 dependencies:

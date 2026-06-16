@@ -19,6 +19,27 @@ If you're upgrading from v1.x:
 - `imageCredentials` is now **optional** — it's auto-extracted from the token blob. You can remove it from your install commands.
 - **GCP users:** `platform.gke.serviceAccount` and `platform.gke.projectId` are now `platform.gcp.serviceAccount` and `platform.gcp.projectId`.
 
+### Upgrading with an older token (`imageCredentials` / `datadogApiKey` missing)
+
+The chart auto-extracts `imageCredentials` and `datadogApiKey` from the `agent.token` blob.
+**Older tokens (issued before this feature) do not contain these fields.** If you upgrade to
+v2.x with an old token and don't pass the values, the chart now **fails the install/upgrade**
+with a message naming the missing field and how to provide it — instead of deploying into a
+broken state (agent pods `ImagePullBackOff`, Datadog pods `CrashLoopBackOff`).
+
+To resolve, pick whichever fits:
+
+- **Issue a new token** from Entitle (Org Settings) — new tokens include both fields — and pass it with `--set agent.token=<TOKEN>`.
+- **Reuse your previous values.** If your earlier release already supplied these values (e.g. a v1.x install that passed `--set imageCredentials=...`), keep them on upgrade with `--reuse-values`:
+
+  ```bash
+  helm upgrade entitle-agent entitle/entitle-agent --reuse-values -n entitle
+  ```
+
+  `--reuse-values` carries over every value from your previous release, so credentials you set
+  before are preserved without re-specifying them.
+- **Pass the values explicitly:** `--set imageCredentials=<base64-dockerconfigjson>` and/or `--set datadog.datadog.apiKey=<datadog-api-key>` (or `--set imagePullSecret.name=<existing-secret>` to use your own registry secret; `--set datadog.enabled=false` to disable Datadog).
+
 ## Installation Scenarios
 
 The chart supports four installation scenarios. **The minimum required is 1 value.**
