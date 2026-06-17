@@ -51,12 +51,10 @@ jobs:
         if: steps.list-changed.outputs.changed == 'true'
         run: ct lint --config ct.yaml
 
-      # Cluster-free render tests: assert the credential validator fails install
-      # with a clear message when imageCredentials/datadogApiKey are missing, and
-      # renders on every override/runtime path. Uses dummy tokens — no secrets needed.
-      - name: Run render-time tests
+      # Cluster-free credential-validator tests — dummy tokens, no secrets needed.
+      - name: Run credential-validation tests
         if: steps.list-changed.outputs.changed == 'true'
-        run: bash charts/entitle-agent/ci/render-test.sh
+        run: bash charts/entitle-agent/ci/credential-validation-test.sh
 
       # Note: ct install (smoke test) is not used because the agent deployment
       # has Python-based health probes that require the real agent image.

@@ -153,15 +153,39 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- if not $isRuntimeSecretRef -}}
     {{- if not .Values.imagePullSecret.name -}}
       {{- if not (include "entitle-agent.imageCredentials" . | trim) -}}
-        {{- fail (printf "%s\n%s\n%s\n  1. %s\n  2. %s\n  3. %s\n%s\n%s" "entitle-agent: imageCredentials is missing." "It could not be resolved from agent.token (your token blob has no 'imageCredentials' field — likely an older token) and no override was provided. Without it the agent image cannot be pulled (ImagePullBackOff)." "Provide it in one of these ways:" "Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>" "Pass the credentials explicitly: --set imageCredentials=<base64-dockerconfigjson>" "Reference a pre-existing image pull Secret: --set imagePullSecret.name=<secret-name>" "Upgrading an existing release? Add --reuse-values to keep the values from your previous install." "Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent") -}}
+        {{- fail (include "entitle-agent.missingImageCredentialsMessage" .) -}}
       {{- end -}}
     {{- end -}}
     {{- if .Values.datadog.enabled -}}
       {{- if not (include "entitle-agent.datadogApiKey" . | trim) -}}
-        {{- fail (printf "%s\n%s\n%s\n  1. %s\n  2. %s\n  3. %s\n%s\n%s" "entitle-agent: datadogApiKey is missing (datadog.enabled=true)." "It could not be resolved from agent.token (your token blob has no 'datadogApiKey' field — likely an older token) and no override was provided. Without it the Datadog pods crash (CrashLoopBackOff)." "Provide it in one of these ways:" "Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>" "Pass the key explicitly: --set datadog.datadog.apiKey=<datadog-api-key>" "Disable Datadog if you don't use it: --set datadog.enabled=false" "Upgrading an existing release? Add --reuse-values to keep the values from your previous install." "Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent") -}}
+        {{- fail (include "entitle-agent.missingDatadogApiKeyMessage" .) -}}
       {{- end -}}
     {{- end -}}
   {{- end -}}
+{{- end -}}
+
+{{/* Failure message for an unresolvable imageCredentials. */}}
+{{- define "entitle-agent.missingImageCredentialsMessage" -}}
+entitle-agent: imageCredentials is missing.
+It could not be resolved (from the agent.token or an explicit --set value): your token blob has no 'imageCredentials' field — likely an older token — and no override was provided. Without it the agent image cannot be pulled (ImagePullBackOff).
+Provide it in one of these ways:
+  1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
+  2. Pass the credentials explicitly: --set imageCredentials=<base64-dockerconfigjson>
+  3. Reference a pre-existing image pull Secret: --set imagePullSecret.name=<secret-name>
+Upgrading an existing release? Add --reuse-values to keep the values from your previous install.
+Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
+{{- end -}}
+
+{{/* Failure message for an unresolvable datadogApiKey (only when datadog.enabled). */}}
+{{- define "entitle-agent.missingDatadogApiKeyMessage" -}}
+entitle-agent: datadogApiKey is missing (datadog.enabled=true).
+It could not be resolved (from the agent.token or an explicit --set value): your token blob has no 'datadogApiKey' field — likely an older token — and no override was provided. Without it the Datadog pods crash (CrashLoopBackOff).
+Provide it in one of these ways:
+  1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
+  2. Pass the key explicitly: --set datadog.datadog.apiKey=<datadog-api-key>
+  3. Disable Datadog if you don't use it: --set datadog.enabled=false
+Upgrading an existing release? Add --reuse-values to keep the values from your previous install.
+Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
 {{/* Extracts "routing" field from token */}}

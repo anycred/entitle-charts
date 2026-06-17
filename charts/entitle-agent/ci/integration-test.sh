@@ -12,24 +12,15 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib.sh"
+
 CHART_DIR="charts/entitle-agent"
 CI_DIR="${CHART_DIR}/ci"
 NAMESPACE="entitle-ci"
 RELEASE="entitle-agent"
 TIMEOUT=120  # seconds to wait for pods
 POD_READY_TIMEOUT=300  # seconds to wait for pod Ready (1/1)
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m'
-
-pass() { echo -e "${GREEN}PASS${NC}: $1"; }
-fail() { echo -e "${RED}FAIL${NC}: $1"; FAILED=1; }
-info() { echo -e "${YELLOW}>>>${NC} $1"; }
-
-FAILED=0
 
 # ---------- Helpers ----------
 
