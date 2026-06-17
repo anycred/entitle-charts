@@ -1,4 +1,5 @@
 {{- include "entitle-agent.validateAgentVersion" . -}}
+{{- include "entitle-agent.validateRequiredCredentials" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
