@@ -109,7 +109,6 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
 ## Pre-Install
 
 ```shell
-helm repo add datadog https://helm.datadoghq.com
 helm repo add entitle https://anycred.github.io/entitle-charts/
 ```
 
