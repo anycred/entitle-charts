@@ -133,6 +133,38 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
+{{/* Registry host the image is pulled from — derived from the pull credentials.
+     The dockerconfigjson auths key IS the registry host, so taking it from there
+     keeps the image host and the credential host in lock-step: they come from one
+     source and can never drift. Empty when no credentials are available, in which
+     case the host already in agent.image.repository is used. */}}
+{{- define "entitle-agent.imageRegistry" -}}
+  {{- $creds := include "entitle-agent.imageCredentials" . -}}
+  {{- if $creds -}}
+    {{- $decoded := $creds | b64dec -}}
+    {{- if hasPrefix "{" $decoded -}}
+      {{- $auths := (($decoded | fromJson).auths) | default dict -}}
+      {{- $hosts := keys $auths -}}
+      {{- if $hosts -}}{{- first $hosts -}}{{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Composes the agent image reference. The registry host comes from the pull
+     credentials when present (so it always matches the host that owns the
+     credential); otherwise agent.image.repository is used verbatim. The path
+     segment always comes from agent.image.repository; the tag from resolvedImageTag. */}}
+{{- define "entitle-agent.imageRef" -}}
+  {{- $repo := .Values.agent.image.repository -}}
+  {{- $reg := include "entitle-agent.imageRegistry" . -}}
+  {{- if $reg -}}
+    {{- $parts := splitn "/" 2 $repo -}}
+    {{- $path := index $parts "_1" | default (index $parts "_0") -}}
+    {{- $repo = printf "%s/%s" $reg $path -}}
+  {{- end -}}
+  {{- printf "%s:%s" $repo (include "entitle-agent.resolvedImageTag" .) -}}
+{{- end -}}
+
 {{/*
 Validates that the credentials needed for a working deployment can be resolved at
 render time, and fails helm install/upgrade with an actionable message if not.
@@ -211,6 +243,23 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
     {{- else -}}
       {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
     {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Datadog image registry, selected by the token's "routing" field:
+       v0 / field absent  -> pull direct from the upstream registry (gcr.io/datadoghq)
+       v1 (or higher)     -> pull through the proxy
+     The proxy host is derived from entitle-agent.proxyUrl (agent.{platform} ->
+     monitoring-agent.{platform}) and uses the "monitoring-agent" alias namespace;
+     the proxy maps that back to the real upstream, so the image ref never embeds it. */}}
+{{- define "entitle-agent.datadogRegistry" -}}
+  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
+  {{- if and $routing (ne $routing "v0") $proxyUrl -}}
+    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+    {{- printf "monitoring-agent%s/monitoring-agent" (trimPrefix "agent" $host) -}}
+  {{- else -}}
+    {{- "gcr.io/datadoghq" -}}
   {{- end -}}
 {{- end -}}
 

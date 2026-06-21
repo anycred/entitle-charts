@@ -97,6 +97,11 @@ agent:
     key: "ENTITLE_JSON_CONFIGURATION"     # Key within the Secret (override if your secret uses a different key)
 
   image:
+    # -- repository: image path. The registry host is taken from the pull
+    # credentials (imageCredentials / token) so the image is always pulled from
+    # the same host that owns the credential — e.g. pulling through the Entitle
+    # proxy only requires credentials keyed to the proxy host, the image follows.
+    # The host below is used only when no credentials are available. DOPS-678.
     repository: ghcr.io/anycred/entitle-agent  # Docker image repository
     tag: latest            # Tag for the agent image; defaults to Chart.appVersion if empty
 
@@ -127,6 +132,18 @@ agent:
 datadog:
   enabled: true            # Set false to disable the Datadog Helm subchart
   sidecarLogs: true        # Enable Datadog sidecar container for log shipping when datadog.enabled=false
+
+  # Container image registry/namespace for the monitoring-agent subchart images.
+  # Default pulls direct from the internet. To pull through the on-prem registry
+  # proxy instead, set this to the monitoring-agent proxy host + alias namespace for
+  # your platform, e.g.:
+  #   registry: monitoring-agent.<platform>.entitle.io/monitoring-agent
+  # (mirrors the agent image, which is pulled via agent.<platform>.entitle.io). The
+  # proxy maps the alias namespace to the real upstream, so neither the image ref nor
+  # the DNS/firewall reveals the upstream vendor.
+  # NOTE: unlike the agent image host, this cannot be auto-derived from the token —
+  # Helm does not template subchart values, so it must be set explicitly per platform.
+  registry: gcr.io/datadoghq
 
   providers:
     gke:
