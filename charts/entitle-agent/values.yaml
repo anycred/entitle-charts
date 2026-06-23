@@ -128,17 +128,6 @@ datadog:
   enabled: true            # Set false to disable the Datadog Helm subchart
   sidecarLogs: true        # Enable Datadog sidecar container for log shipping when datadog.enabled=false
 
-  # Container image registry/namespace for the monitoring-agent subchart images.
-  # Default pulls direct from the internet. To pull through the on-prem registry
-  # proxy instead, set this to the monitoring-agent proxy host + alias namespace for
-  # your platform, e.g.:
-  #   registry: monitoring-agent.<platform>.entitle.io/monitoring-agent
-  # (mirrors the agent image, which is pulled via agent.<platform>.entitle.io). The
-  # proxy maps the alias namespace to the real upstream, so neither the image ref nor
-  # the DNS/firewall reveals the upstream vendor.
-  # NOTE: this is the SUBCHART (datadog.enabled=true) registry. The sidecar path
-  # (datadog.enabled=false) auto-selects it from the token's "routing" field instead;
-  # Helm can't template subchart values, so the subchart must be set here explicitly.
   registry: gcr.io/datadoghq
 
   providers:
