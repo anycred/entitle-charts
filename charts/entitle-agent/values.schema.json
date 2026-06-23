@@ -222,8 +222,8 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "default": true,
-          "description": "Enable/disable the Datadog Helm subchart"
+          "default": false,
+          "description": "Run the full Datadog Helm subchart (DaemonSet). Default false — the lightweight logs-only sidecar is used instead (see sidecarLogs)."
         },
         "sidecarLogs": {
           "type": "boolean",

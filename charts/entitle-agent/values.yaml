@@ -125,8 +125,10 @@ agent:
 # Set datadog.enabled=false to disable it entirely.
 
 datadog:
-  enabled: true            # Set false to disable the Datadog Helm subchart
-  sidecarLogs: true        # Enable Datadog sidecar container for log shipping when datadog.enabled=false
+  # Default: lightweight logs-only sidecar. Set enabled=true to run the full
+  # Datadog Helm subchart (DaemonSet — host metrics, APM, processes) instead.
+  enabled: false           # false = sidecar (see sidecarLogs); true = full Datadog subchart DaemonSet
+  sidecarLogs: true        # Datadog sidecar container for log shipping (used when datadog.enabled=false)
 
   registry: gcr.io/datadoghq
 
