@@ -217,15 +217,15 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{/* Datadog image registry, selected by the token's "routing" field:
        v0 / field absent  -> pull direct from the upstream registry (gcr.io/datadoghq)
        v1 (or higher)     -> pull through the proxy
-     The proxy host is derived from entitle-agent.proxyUrl (agent.{platform} ->
-     monitoring-agent.{platform}) and uses the "monitoring-agent" alias namespace;
-     the proxy maps that back to the real upstream, so the image ref never embeds it. */}}
+     Uses the same proxy host as the agent image (agent.{platform}.entitle.io, from
+     entitle-agent.proxyUrl) under the "monitoring-agent" alias namespace; the proxy
+     maps that namespace back to the real upstream, so the image ref never embeds it. */}}
 {{- define "entitle-agent.datadogRegistry" -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- if and $routing (ne $routing "v0") $proxyUrl -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
-    {{- printf "monitoring-agent%s/monitoring-agent" (trimPrefix "agent" $host) -}}
+    {{- printf "%s/monitoring-agent" $host -}}
   {{- else -}}
     {{- "gcr.io/datadoghq" -}}
   {{- end -}}
