@@ -222,13 +222,18 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "default": true,
-          "description": "Enable/disable the Datadog Helm subchart"
+          "default": false,
+          "description": "Run the full Datadog Helm subchart (DaemonSet). Default false — the lightweight logs-only sidecar is used instead (see sidecarLogs)."
         },
         "sidecarLogs": {
           "type": "boolean",
           "default": true,
           "description": "Enable Datadog sidecar container for log shipping"
+        },
+        "registry": {
+          "type": "string",
+          "default": "gcr.io/datadoghq",
+          "description": "Registry/namespace for the monitoring-agent subchart images. Set to monitoring-agent.<platform>.entitle.io/monitoring-agent to pull through the on-prem registry proxy (the proxy maps the alias namespace to the real upstream)."
         },
         "datadog": {
           "type": "object",
