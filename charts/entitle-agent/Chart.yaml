@@ -12,7 +12,9 @@ icon: https://app.entitle.io/favicon.ico
 # or datadogApiKey cannot be resolved from agent.token or explicit values, instead of
 # deploying into a broken state.
 # v2.6.0: optionally pull the monitoring-agent image through the on-prem registry proxy.
-version: 2.6.0
+# v2.7.0 (DOPS-678): also pull the agent image through the proxy (routing v1+), keyed
+# to the proxy host; the agent and monitoring-agent images share one proxy URL.
+version: 2.7.0
 appVersion: "1.0.0"
 
 dependencies:
