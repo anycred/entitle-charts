@@ -9,6 +9,7 @@ Docker registry login secret.
 {{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") }}
 {{- if not .Values.imagePullSecret.name -}}
 {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
+{{- $dockerConfig := include "entitle-agent.dockerConfigJson" . -}}
 {{- if or $imageCreds .Values.agent.secretRef.name }}
 apiVersion: v1
 kind: Secret
@@ -25,7 +26,7 @@ metadata:
 type: kubernetes.io/dockerconfigjson
 data:
   {{- if $imageCreds }}
-  .dockerconfigjson: {{ $imageCreds | quote }}
+  .dockerconfigjson: {{ $dockerConfig | quote }}
   {{- else }}
   .dockerconfigjson: eyJhdXRocyI6e319
   {{- end }}
