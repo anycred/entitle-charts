@@ -231,6 +231,36 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- end -}}
 {{- end -}}
 
+{{/* Full agent image reference including tag.
+     Preferred form: `agent.image.registry` + `agent.image.name` (both set).
+     Legacy fallback: `agent.image.repository`. */}}
+{{- define "entitle-agent.agentImageRef" -}}
+  {{- $registry := .Values.agent.image.registry | default "" -}}
+  {{- $name := .Values.agent.image.name | default "" -}}
+  {{- $tag := include "entitle-agent.resolvedImageTag" . -}}
+  {{- if and $registry $name -}}
+    {{- printf "%s/%s:%s" $registry $name $tag -}}
+  {{- else -}}
+    {{- printf "%s:%s" .Values.agent.image.repository $tag -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Full Datadog sidecar image reference including tag.
+     Preferred form: `datadog.image.registry` + `datadog.image.name` (both set)
+     with `datadog.image.tag` (defaults to "latest").
+     Legacy fallback: `<datadog.registry>/agent:latest` — preserves the
+     routing-v1 proxy rewrite via `entitle-agent.datadogRegistry`. */}}
+{{- define "entitle-agent.datadogImageRef" -}}
+  {{- $registry := .Values.datadog.image.registry | default "" -}}
+  {{- $name := .Values.datadog.image.name | default "" -}}
+  {{- $tag := .Values.datadog.image.tag | default "latest" -}}
+  {{- if and $registry $name -}}
+    {{- printf "%s/%s:%s" $registry $name $tag -}}
+  {{- else -}}
+    {{- printf "%s/agent:%s" (include "entitle-agent.datadogRegistry" .) $tag -}}
+  {{- end -}}
+{{- end -}}
+
 {{/* ============================================================
      Secret reference helpers
      ============================================================ */}}
