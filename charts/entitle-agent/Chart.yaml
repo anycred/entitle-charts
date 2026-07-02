@@ -15,11 +15,11 @@ icon: https://app.entitle.io/favicon.ico
 # v2.7.0: extract-pull-secret hook parses the token with jq (handles multi-line
 # token JSON) instead of a line-oriented sed, fixing 401 ImagePullBackOff on the
 # agent.secretRef install path.
-# v2.8.0: expose `{registry, name, tag}` triples for the agent image
-# (agent.image.registry + agent.image.name) and the Datadog logs sidecar image
-# (datadog.image.registry + datadog.image.name + datadog.image.tag) so
-# customers mirroring images into a private registry can override each image
-# independently. Legacy agent.image.repository and datadog.registry still work.
+# v2.8.0: make the Datadog logs sidecar image configurable via
+# `datadog.image.repository` + `datadog.image.tag` (defaults to
+# `gcr.io/datadoghq/agent:latest`), so customers mirroring images into a
+# private registry can override it. The routing-v1 proxy rewrite is
+# preserved. The unused `datadog.registry` value has been removed.
 version: 2.8.0
 appVersion: "1.0.0"
 

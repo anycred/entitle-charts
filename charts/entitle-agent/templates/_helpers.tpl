@@ -214,50 +214,28 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- end -}}
 {{- end -}}
 
-{{/* Datadog image registry, selected by the token's "routing" field:
-       v0 / field absent  -> pull direct from the upstream registry (gcr.io/datadoghq)
-       v1 (or higher)     -> pull through the proxy
-     Uses the same proxy host as the agent image (agent.{platform}.entitle.io, from
-     entitle-agent.proxyUrl) under the "monitoring-agent" alias namespace; the proxy
-     maps that namespace back to the real upstream, so the image ref never embeds it. */}}
-{{- define "entitle-agent.datadogRegistry" -}}
+{{/* Full Datadog logs sidecar image reference including tag.
+     Selected by the token's "routing" field:
+       v0 / field absent  -> `datadog.image.repository`:`datadog.image.tag` as-is
+       v1 (or higher)     -> pull through the proxy: rewrite to
+                             `<proxyHost>/monitoring-agent/<basename>:<tag>` where
+                             basename is the last "/"-separated segment of the
+                             configured repository. Uses the same proxy host as
+                             the agent image (agent.{platform}.entitle.io, from
+                             entitle-agent.proxyUrl); the "monitoring-agent"
+                             alias namespace is mapped back to the real upstream
+                             by the proxy. */}}
+{{- define "entitle-agent.datadogImage" -}}
+  {{- $repository := .Values.datadog.image.repository -}}
+  {{- $tag := .Values.datadog.image.tag | default "latest" -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- if and $routing (ne $routing "v0") $proxyUrl -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
-    {{- printf "%s/monitoring-agent" $host -}}
+    {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
+    {{- printf "%s/monitoring-agent/%s:%s" $host $basename $tag -}}
   {{- else -}}
-    {{- "gcr.io/datadoghq" -}}
-  {{- end -}}
-{{- end -}}
-
-{{/* Full agent image reference including tag.
-     Preferred form: `agent.image.registry` + `agent.image.name` (both set).
-     Legacy fallback: `agent.image.repository`. */}}
-{{- define "entitle-agent.agentImageRef" -}}
-  {{- $registry := .Values.agent.image.registry | default "" -}}
-  {{- $name := .Values.agent.image.name | default "" -}}
-  {{- $tag := include "entitle-agent.resolvedImageTag" . -}}
-  {{- if and $registry $name -}}
-    {{- printf "%s/%s:%s" $registry $name $tag -}}
-  {{- else -}}
-    {{- printf "%s:%s" .Values.agent.image.repository $tag -}}
-  {{- end -}}
-{{- end -}}
-
-{{/* Full Datadog sidecar image reference including tag.
-     Preferred form: `datadog.image.registry` + `datadog.image.name` (both set)
-     with `datadog.image.tag` (defaults to "latest").
-     Legacy fallback: `<datadog.registry>/agent:latest` — preserves the
-     routing-v1 proxy rewrite via `entitle-agent.datadogRegistry`. */}}
-{{- define "entitle-agent.datadogImageRef" -}}
-  {{- $registry := .Values.datadog.image.registry | default "" -}}
-  {{- $name := .Values.datadog.image.name | default "" -}}
-  {{- $tag := .Values.datadog.image.tag | default "latest" -}}
-  {{- if and $registry $name -}}
-    {{- printf "%s/%s:%s" $registry $name $tag -}}
-  {{- else -}}
-    {{- printf "%s/agent:%s" (include "entitle-agent.datadogRegistry" .) $tag -}}
+    {{- printf "%s:%s" $repository $tag -}}
   {{- end -}}
 {{- end -}}
 

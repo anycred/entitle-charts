@@ -196,10 +196,8 @@
           "type": "object",
           "required": ["repository"],
           "properties": {
-            "repository": { "type": "string", "description": "Legacy full repository (registry+name). Used when both `registry` and `name` are unset." },
-            "tag": { "type": "string", "default": "latest" },
-            "registry": { "type": "string", "default": "", "description": "Optional registry host. When set together with `name`, overrides `repository`." },
-            "name": { "type": "string", "default": "", "description": "Optional image name (path under the registry). When set together with `registry`, overrides `repository`." }
+            "repository": { "type": "string", "description": "Full image repository (registry+name). Defaults to the upstream; override to point at a private mirror." },
+            "tag": { "type": "string", "default": "latest" }
           }
         },
         "kafka": {
@@ -232,18 +230,12 @@
           "default": true,
           "description": "Enable Datadog sidecar container for log shipping"
         },
-        "registry": {
-          "type": "string",
-          "default": "gcr.io/datadoghq",
-          "description": "Legacy registry/namespace for the monitoring-agent subchart images. Used when `image.registry` and `image.name` are unset. Set to monitoring-agent.<platform>.entitle.io/monitoring-agent to pull through the on-prem registry proxy (the proxy maps the alias namespace to the real upstream)."
-        },
         "image": {
           "type": "object",
-          "description": "Optional split form for the Datadog logs sidecar image. When BOTH `registry` and `name` are set they override `datadog.registry` and the final image is `<registry>/<name>:<tag>`.",
+          "description": "Datadog logs sidecar image. Override `repository` to point at a private mirror. Under routing v1 the registry+namespace portion is rewritten to pull through the on-prem registry proxy.",
           "properties": {
-            "registry": { "type": "string", "default": "", "description": "Optional registry host." },
-            "name": { "type": "string", "default": "", "description": "Optional image name (path under the registry)." },
-            "tag": { "type": "string", "default": "", "description": "Image tag. Defaults to `latest` when empty." }
+            "repository": { "type": "string", "default": "gcr.io/datadoghq/agent", "description": "Full image repository (registry+name)." },
+            "tag": { "type": "string", "default": "latest", "description": "Image tag." }
           }
         },
         "datadog": {

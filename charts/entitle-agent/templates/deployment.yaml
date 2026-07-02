@@ -45,7 +45,7 @@ spec:
       # Datadog native sidecar — starts first, stays running to collect logs
       # from the healthcheck init container and the main agent container.
       - name: datadog-agent
-        image: {{ include "entitle-agent.datadogImageRef" . }}
+        image: {{ include "entitle-agent.datadogImage" . }}
         imagePullPolicy: Always
         restartPolicy: Always
         envFrom:
@@ -84,7 +84,7 @@ spec:
       # Healthcheck validators must exit 0 before the main agent container starts.
       # This guarantees the agent never consumes Kafka messages in an invalid state.
       - name: {{ include "entitle-agent.fullname" . }}-healthcheck
-        image: {{ include "entitle-agent.agentImageRef" . }}
+        image: {{ .Values.agent.image.repository }}:{{ include "entitle-agent.resolvedImageTag" . }}
         imagePullPolicy: Always
         command:
           - python
@@ -102,7 +102,7 @@ spec:
         {{- end }}
       containers:
       - name: {{ include "entitle-agent.fullname" . }}
-        image: {{ include "entitle-agent.agentImageRef" . }}
+        image: {{ .Values.agent.image.repository }}:{{ include "entitle-agent.resolvedImageTag" . }}
         imagePullPolicy: Always
         env:
         {{- include "entitle-agent.agentEnv" . | nindent 8 }}

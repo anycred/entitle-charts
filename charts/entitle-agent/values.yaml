@@ -97,15 +97,8 @@ agent:
     key: "ENTITLE_JSON_CONFIGURATION"     # Key within the Secret (override if your secret uses a different key)
 
   image:
-    # Legacy full-repository form (registry + name combined). Used when the
-    # `registry`/`name` fields below are empty.
-    repository: ghcr.io/anycred/entitle-agent  # Docker image repository
+    repository: ghcr.io/anycred/entitle-agent  # Docker image repository. Override to mirror into a private registry (e.g. myreg.example.com/mirrors/entitle-agent).
     tag: latest            # Tag for the agent image; defaults to Chart.appVersion if empty
-    # Optional split form. When BOTH `registry` and `name` are set, they
-    # override `repository` and the final image is "<registry>/<name>:<tag>".
-    # Useful when mirroring the agent image into a private registry.
-    registry: ""           # e.g. "myreg.example.com"
-    name: ""               # e.g. "mirrors/entitle-agent"
 
   # -- agent_version: Controls the effective image tag + restart policy.
   # Valid: "default" (token-controlled), "auto-update", "latest-on-restart", or a pinned semver (e.g. "2.7.4").
@@ -137,19 +130,13 @@ datadog:
   enabled: false           # false = sidecar (see sidecarLogs); true = full Datadog subchart DaemonSet
   sidecarLogs: true        # Datadog sidecar container for log shipping (used when datadog.enabled=false)
 
-  # Legacy registry field — used as the registry+namespace when the `image`
-  # block below is not fully specified. The sidecar image resolves to
-  # "<registry>/agent:latest" in that case.
-  registry: gcr.io/datadoghq
-
-  # Optional split form for the Datadog logs sidecar image. When BOTH
-  # `image.registry` and `image.name` are set, they override `registry` and
-  # the final image is "<image.registry>/<image.name>:<image.tag>".
-  # Useful when mirroring the Datadog agent image into a private registry.
+  # Datadog logs sidecar image. Override `repository` to mirror into a private
+  # registry (e.g. myreg.example.com/mirrors/datadog-agent).
+  # When routing v1 is active, the repository is rewritten at render time to
+  # pull through the on-prem registry proxy (the tag is preserved).
   image:
-    registry: ""           # e.g. "myreg.example.com"
-    name: ""               # e.g. "mirrors/datadog-agent"
-    tag: ""                # defaults to "latest" when empty
+    repository: gcr.io/datadoghq/agent
+    tag: latest
 
   providers:
     gke:
