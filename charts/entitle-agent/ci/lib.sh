@@ -2,8 +2,8 @@
 # =============================================================================
 # Shared helpers for entitle-agent CI test scripts.
 # =============================================================================
-# Provides ANSI colors and the pass/fail/info reporters used by both
-# integration-test.sh and credential-validation-test.sh. Source it with:
+# Provides ANSI colors and the pass/fail/info reporters used by
+# credential-validation-test.sh. Source it with:
 #   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 # Sets FAILED=0; fail() flips it to 1 so callers can exit non-zero.
 # =============================================================================
