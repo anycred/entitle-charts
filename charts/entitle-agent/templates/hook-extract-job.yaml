@@ -42,10 +42,12 @@ spec:
           # Read the token JSON from the mounted secret file
           TOKEN_JSON=$(cat "/secret/{{ include "entitle-agent.agentSecretKey" . }}")
 
-          # Unwrap BASE64_CONFIGURATION to get the raw token blob
-          B64_CONFIG=$(echo "$TOKEN_JSON" | sed 's/.*BASE64_CONFIGURATION":"\([^"]*\).*/\1/')
+          # Unwrap BASE64_CONFIGURATION to get the raw token blob.
+          # Use jq (present in bitnami/kubectl) so parsing is robust to JSON
+          # whitespace, newlines and key ordering — a plain sed regex is not.
+          B64_CONFIG=$(echo "$TOKEN_JSON" | jq -r '.BASE64_CONFIGURATION // empty')
 
-          if [ -z "$B64_CONFIG" ] || [ "$B64_CONFIG" = "$TOKEN_JSON" ]; then
+          if [ -z "$B64_CONFIG" ]; then
             echo "ERROR: Could not extract BASE64_CONFIGURATION from secret"
             exit 1
           fi
@@ -56,7 +58,7 @@ spec:
           # --- Patch docker-login secret ---
           {{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
           {{- if not (or .Values.imagePullSecret.name $hasImageCreds) }}
-          IMAGE_CREDS=$(echo "$FULL_TOKEN" | sed 's/.*"imageCredentials":"\([^"]*\)".*/\1/')
+          IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
 
           # routing v1+ pulls the agent image through the proxy host, so the pull
           # secret must be keyed to that host instead of the upstream registry
@@ -90,9 +92,9 @@ spec:
           {{- end }}
 
           # --- Patch datadog secret ---
-          DD_API_KEY=$(echo "$FULL_TOKEN" | sed 's/.*"datadogApiKey":"\([^"]*\)".*/\1/')
+          DD_API_KEY=$(echo "$FULL_TOKEN" | jq -r '.datadogApiKey // empty')
 
-          if [ -n "$DD_API_KEY" ] && [ "$DD_API_KEY" != "$FULL_TOKEN" ]; then
+          if [ -n "$DD_API_KEY" ]; then
             echo "Patching datadog secret with extracted datadogApiKey"
             kubectl patch secret "{{ include "entitle-agent.fullname" . }}-datadog-secret" \
               -n "$NAMESPACE" \
