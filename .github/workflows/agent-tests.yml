@@ -6,8 +6,9 @@ name: agent-tests
 # immediately — so this can be a required status check without blocking
 # unrelated PRs.
 #
-# Requires repo secret AGENT_TESTS_PAT: a fine-grained PAT scoped to
-# anycred/entitle-charts-tests with "Actions: read and write".
+# Auth: a GitHub App (secrets AGENT_TESTS_APP_ID + AGENT_TESTS_APP_PRIVATE_KEY)
+# installed on anycred/entitle-charts-tests with "Actions: read and write".
+# A short-lived installation token is minted per run — no standing credential.
 on:
   pull_request:
     branches: [master]
@@ -41,19 +42,34 @@ jobs:
             echo "No entitle-agent chart changes — skipping agent tests."
           fi
 
+      - name: Verify App credentials are available
+        if: steps.detect.outputs.run == 'true'
+        env:
+          APP_ID: ${{ secrets.AGENT_TESTS_APP_ID }}
+        run: |
+          if [ -z "${APP_ID:-}" ]; then
+            echo "::error::GitHub App credentials not available (fork PR or App not configured); cannot run the private suite."
+            exit 1
+          fi
+
+      - name: Mint token for entitle-charts-tests
+        id: app-token
+        if: steps.detect.outputs.run == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.AGENT_TESTS_APP_ID }}
+          private-key: ${{ secrets.AGENT_TESTS_APP_PRIVATE_KEY }}
+          owner: anycred
+          repositories: entitle-charts-tests
+
       - name: Dispatch and wait for entitle-charts-tests
         if: steps.detect.outputs.run == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AGENT_TESTS_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TESTS_REPO: anycred/entitle-charts-tests
           CHART_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::AGENT_TESTS_PAT is not available (fork PR or missing secret); cannot run the private suite."
-            exit 1
-          fi
-
           since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           echo "Dispatching orchestrator (chart_ref=$CHART_SHA)"
           gh workflow run orchestrator.yaml --repo "$TESTS_REPO" --ref master -f chart_ref="$CHART_SHA"
