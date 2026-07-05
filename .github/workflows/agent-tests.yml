@@ -1,0 +1,82 @@
+name: agent-tests
+
+# Gates chart PRs on the private end-to-end suite in anycred/entitle-charts-tests.
+# When chart files change, dispatches that repo's orchestrator against this PR's
+# head SHA, waits, and mirrors the result. When no chart files change, passes
+# immediately — so this can be a required status check without blocking
+# unrelated PRs.
+#
+# Requires repo secret AGENT_TESTS_PAT: a fine-grained PAT scoped to
+# anycred/entitle-charts-tests with "Actions: read and write".
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: agent-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  agent-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect chart changes
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          files=$(gh pr view "$PR" --repo "$REPO" --json files --jq '.files[].path')
+          if echo "$files" | grep -qE '^charts/entitle-agent/'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Chart files changed — will run the agent test suite."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No entitle-agent chart changes — skipping agent tests."
+          fi
+
+      - name: Dispatch and wait for entitle-charts-tests
+        if: steps.detect.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_TESTS_PAT }}
+          TESTS_REPO: anycred/entitle-charts-tests
+          CHART_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::AGENT_TESTS_PAT is not available (fork PR or missing secret); cannot run the private suite."
+            exit 1
+          fi
+
+          since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Dispatching orchestrator (chart_ref=$CHART_SHA)"
+          gh workflow run orchestrator.yaml --repo "$TESTS_REPO" --ref master -f chart_ref="$CHART_SHA"
+
+          echo "Locating the dispatched run..."
+          run_id=""
+          for _ in $(seq 1 20); do
+            sleep 6
+            run_id=$(gh run list --repo "$TESTS_REPO" --workflow orchestrator.yaml \
+              --event workflow_dispatch --limit 30 --json databaseId,name,createdAt \
+              --jq "[.[] | select(.createdAt >= \"$since\") | select(.name | contains(\"$CHART_SHA\"))] | sort_by(.createdAt) | last | .databaseId // empty")
+            [ -n "$run_id" ] && break
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::Could not find the dispatched test run."
+            exit 1
+          fi
+
+          run_url="https://github.com/$TESTS_REPO/actions/runs/$run_id"
+          echo "Test run: $run_url"
+          echo "Waiting for it to finish..."
+          gh run watch "$run_id" --repo "$TESTS_REPO" --interval 20 >/dev/null 2>&1 || true
+
+          conclusion=$(gh run view "$run_id" --repo "$TESTS_REPO" --json conclusion --jq '.conclusion')
+          echo "::notice::agent-tests conclusion=$conclusion ($run_url)"
+          [ "$conclusion" = "success" ]
