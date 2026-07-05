@@ -12,9 +12,12 @@ icon: https://app.entitle.io/favicon.ico
 # or datadogApiKey cannot be resolved from agent.token or explicit values, instead of
 # deploying into a broken state.
 # v2.6.0: optionally pull the monitoring-agent image through the on-prem registry proxy.
-# v2.7.0 (DOPS-678): also pull the agent image through the proxy (routing v1+), keyed
+# v2.7.0: extract-pull-secret hook parses the token with jq (handles multi-line
+# token JSON) instead of a line-oriented sed, fixing 401 ImagePullBackOff on the
+# agent.secretRef install path.
+# v2.8.0 (DOPS-678): also pull the agent image through the proxy (routing v1+), keyed
 # to the proxy host; the agent and monitoring-agent images share one proxy URL.
-version: 2.7.0
+version: 2.8.0
 appVersion: "1.0.0"
 
 dependencies:
