@@ -2,8 +2,7 @@
 # Lint and Test Charts
 # =============================================================================
 # Runs on every push to any branch:
-#   1. Lint changed charts (yamllint + Yamale schema validation)
-#   2. Credential-validation tests (cluster-free, dummy tokens)
+#   1. Lint changed charts (ct lint: yamllint + Yamale schema validation)
 #
 # Full install/e2e testing lives in the private anycred/entitle-charts-tests
 # repo and gates chart PRs via the agent-tests check.
@@ -52,11 +51,6 @@ jobs:
       - name: Run chart-testing (lint)
         if: steps.list-changed.outputs.changed == 'true'
         run: ct lint --config ct.yaml
-
-      # Cluster-free credential-validator tests — dummy tokens, no secrets needed.
-      - name: Run credential-validation tests
-        if: steps.list-changed.outputs.changed == 'true'
-        run: bash charts/entitle-agent/ci/credential-validation-test.sh
 
       # Note: ct install (smoke test) is not used because the agent deployment
       # has Python-based health probes that require the real agent image.

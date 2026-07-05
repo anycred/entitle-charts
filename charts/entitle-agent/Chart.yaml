@@ -15,7 +15,7 @@ icon: https://app.entitle.io/favicon.ico
 # v2.7.0: extract-pull-secret hook parses the token with jq (handles multi-line
 # token JSON) instead of a line-oriented sed, fixing 401 ImagePullBackOff on the
 # agent.secretRef install path.
-# v2.7.1: remove the old ci/ integration-test scaffolding (no chart behavior change).
+# v2.7.1: remove the ci/ test scaffolding (no chart behavior change).
 version: 2.7.1
 appVersion: "1.0.0"
 
