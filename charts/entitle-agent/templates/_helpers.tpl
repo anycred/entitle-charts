@@ -232,7 +232,7 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $tag := .Values.datadog.image.tag | default "latest" -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- $isDefault := eq $repository "gcr.io/datadoghq/agent" -}}
+  {{- $isDefault := eq $repository .Values._defaults.datadogImageRepository -}}
   {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
@@ -256,7 +256,7 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
-  {{- $isDefault := eq $repository "ghcr.io/anycred/entitle-agent" -}}
+  {{- $isDefault := eq $repository .Values._defaults.agentImageRepository -}}
   {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
@@ -271,12 +271,15 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      ref. When pulling through the proxy (routing v1+) that host is the proxy host, so
      re-key the auths entries from the upstream registry host to the proxy host (the
      username/password are unchanged — the proxy forwards the basic-auth /token call to
-     the real upstream). Otherwise pass imageCredentials through unchanged. */}}
+     the real upstream). Only rewrite if the agent repository is using the default.
+     If agent is custom, pass imageCredentials through unchanged to allow direct pulls
+     from private mirrors. */}}
 {{- define "entitle-agent.dockerConfigJson" -}}
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl -}}
+  {{- $agentIsDefault := eq .Values.agent.image.repository .Values._defaults.agentImageRepository -}}
+  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}
     {{- $newAuths := dict -}}

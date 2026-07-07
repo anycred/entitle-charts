@@ -5,6 +5,13 @@
 # Chart repo: https://anycred.github.io/entitle-charts/
 # =============================================================================
 
+# Default image repositories (reference values for proxy-rewrite logic in _helpers.tpl).
+# IMPORTANT: These must match the actual defaults below at agent.image.repository
+# and datadog.image.repository. If you change those values, update these too.
+_defaults:
+  agentImageRepository: ghcr.io/anycred/entitle-agent  # Must match agent.image.repository below
+  datadogImageRepository: gcr.io/datadoghq/agent        # Must match datadog.image.repository below
+
 # -- imageCredentials: Base64-encoded dockerconfigjson for the agent image registry.
 # Typically auto-extracted from agent.token (the token blob contains this field).
 # Only set explicitly if you need to override the registry credentials in the token.
@@ -97,6 +104,7 @@ agent:
     key: "ENTITLE_JSON_CONFIGURATION"     # Key within the Secret (override if your secret uses a different key)
 
   image:
+    # IMPORTANT: This default must match _defaults.agentImageRepository at the top of this file.
     repository: ghcr.io/anycred/entitle-agent  # Docker image repository. Override to mirror into a private registry (e.g. myreg.example.com/mirrors/entitle-agent).
     tag: latest            # Tag for the agent image; defaults to Chart.appVersion if empty
 
@@ -132,8 +140,10 @@ datadog:
 
   # Datadog logs sidecar image. Override `repository` to mirror into a private
   # registry (e.g. myreg.example.com/mirrors/datadog-agent).
-  # When routing v1 is active, the repository is rewritten at render time to
-  # pull through the on-prem registry proxy (the tag is preserved).
+  # When routing v1 is active and using the default repository, the image is
+  # rewritten to pull through the on-prem registry proxy (the tag is preserved).
+  # Custom repositories bypass the proxy to allow direct pulls from private mirrors.
+  # IMPORTANT: The repository default must match _defaults.datadogImageRepository at the top of this file.
   image:
     repository: gcr.io/datadoghq/agent
     tag: latest
