@@ -239,6 +239,49 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- end -}}
 {{- end -}}
 
+{{/* Agent image repository, selected by the token's "routing" field (mirrors
+     entitle-agent.datadogRegistry):
+       v0 / field absent  -> pull direct from the configured registry (agent.image.repository)
+       v1 (or higher)     -> pull through the proxy: swap the registry host for the proxy
+                             host (agent.{platform}.entitle.io), keeping the repo path. The
+                             proxy's default/catch-all route forwards it to the real upstream
+                             (ghcr.io), so the image ref never embeds the upstream host. */}}
+{{- define "entitle-agent.agentImageRepository" -}}
+  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
+  {{- $repository := .Values.agent.image.repository -}}
+  {{- if and $routing (ne $routing "v0") $proxyUrl -}}
+    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+    {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
+    {{- printf "%s/%s" $host $path -}}
+  {{- else -}}
+    {{- $repository -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* dockerconfigjson for the agent image pull secret. The agent image is private
+     (ghcr), so containerd needs registry credentials keyed to the host in the image
+     ref. When pulling through the proxy (routing v1+) that host is the proxy host, so
+     re-key the auths entries from the upstream registry host to the proxy host (the
+     username/password are unchanged — the proxy forwards the basic-auth /token call to
+     the real upstream). Otherwise pass imageCredentials through unchanged. */}}
+{{- define "entitle-agent.dockerConfigJson" -}}
+  {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
+  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
+  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl -}}
+    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+    {{- $decoded := $imageCreds | b64dec | fromJson -}}
+    {{- $newAuths := dict -}}
+    {{- range $k, $v := $decoded.auths -}}
+      {{- $_ := set $newAuths $host $v -}}
+    {{- end -}}
+    {{- dict "auths" $newAuths | toJson | b64enc -}}
+  {{- else -}}
+    {{- $imageCreds -}}
+  {{- end -}}
+{{- end -}}
+
 {{/* ============================================================
      Secret reference helpers
      ============================================================ */}}
