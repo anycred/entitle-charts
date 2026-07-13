@@ -196,7 +196,7 @@
           "type": "object",
           "required": ["repository"],
           "properties": {
-            "repository": { "type": "string" },
+            "repository": { "type": "string", "description": "Full image repository (registry+name). Defaults to the upstream; override to point at a private mirror." },
             "tag": { "type": "string", "default": "latest" }
           }
         },
@@ -230,10 +230,13 @@
           "default": true,
           "description": "Enable Datadog sidecar container for log shipping"
         },
-        "registry": {
-          "type": "string",
-          "default": "gcr.io/datadoghq",
-          "description": "Registry/namespace for the monitoring-agent subchart images. Set to monitoring-agent.<platform>.entitle.io/monitoring-agent to pull through the on-prem registry proxy (the proxy maps the alias namespace to the real upstream)."
+        "image": {
+          "type": "object",
+          "description": "Datadog logs sidecar image. Override `repository` to point at a private mirror. Under routing v1 the registry+namespace portion is rewritten to pull through the on-prem registry proxy.",
+          "properties": {
+            "repository": { "type": "string", "default": "gcr.io/datadoghq/agent", "description": "Full image repository (registry+name)." },
+            "tag": { "type": "string", "default": "latest", "description": "Image tag." }
+          }
         },
         "datadog": {
           "type": "object",

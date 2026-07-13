@@ -45,7 +45,7 @@ spec:
       # Datadog native sidecar — starts first, stays running to collect logs
       # from the healthcheck init container and the main agent container.
       - name: datadog-agent
-        image: {{ include "entitle-agent.datadogRegistry" . }}/agent:latest
+        image: {{ include "entitle-agent.datadogImage" . }}
         imagePullPolicy: Always
         restartPolicy: Always
         envFrom:

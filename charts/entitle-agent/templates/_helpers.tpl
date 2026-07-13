@@ -214,35 +214,50 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- end -}}
 {{- end -}}
 
-{{/* Datadog image registry, selected by the token's "routing" field:
-       v0 / field absent  -> pull direct from the upstream registry (gcr.io/datadoghq)
-       v1 (or higher)     -> pull through the proxy
-     Uses the same proxy host as the agent image (agent.{platform}.entitle.io, from
-     entitle-agent.proxyUrl) under the "monitoring-agent" alias namespace; the proxy
-     maps that namespace back to the real upstream, so the image ref never embeds it. */}}
-{{- define "entitle-agent.datadogRegistry" -}}
+{{/* Full Datadog logs sidecar image reference including tag.
+     Selected by the token's "routing" field:
+       v0 / field absent  -> `datadog.image.repository`:`datadog.image.tag` as-is
+       v1 (or higher)     -> pull through the proxy ONLY if using the default repository.
+                             Rewrite to `<proxyHost>/monitoring-agent/<basename>:<tag>` where
+                             basename is the last "/"-separated segment of the
+                             configured repository. Uses the same proxy host as
+                             the agent image (agent.{platform}.entitle.io, from
+                             entitle-agent.proxyUrl); the "monitoring-agent"
+                             alias namespace is mapped back to the real upstream
+                             by the proxy.
+                             If a custom (non-default) repository is explicitly configured,
+                             use it as-is to allow direct pulls from private mirrors. */}}
+{{- define "entitle-agent.datadogImage" -}}
+  {{- $repository := .Values.datadog.image.repository -}}
+  {{- $tag := .Values.datadog.image.tag | default "latest" -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- if and $routing (ne $routing "v0") $proxyUrl -}}
+  {{- $isDefault := eq $repository .Values._defaults.datadogImageRepository -}}
+  {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
-    {{- printf "%s/monitoring-agent" $host -}}
+    {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
+    {{- printf "%s/monitoring-agent/%s:%s" $host $basename $tag -}}
   {{- else -}}
-    {{- "gcr.io/datadoghq" -}}
+    {{- printf "%s:%s" $repository $tag -}}
   {{- end -}}
 {{- end -}}
 
 {{/* Agent image repository, selected by the token's "routing" field (mirrors
      entitle-agent.datadogRegistry):
        v0 / field absent  -> pull direct from the configured registry (agent.image.repository)
-       v1 (or higher)     -> pull through the proxy: swap the registry host for the proxy
-                             host (agent.{platform}.entitle.io), keeping the repo path. The
+       v1 (or higher)     -> pull through the proxy ONLY if using the default repository.
+                             Swap the registry host for the proxy host
+                             (agent.{platform}.entitle.io), keeping the repo path. The
                              proxy's default/catch-all route forwards it to the real upstream
-                             (ghcr.io), so the image ref never embeds the upstream host. */}}
+                             (ghcr.io), so the image ref never embeds the upstream host.
+                             If a custom (non-default) repository is explicitly configured,
+                             use it as-is to allow direct pulls from private mirrors. */}}
 {{- define "entitle-agent.agentImageRepository" -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
-  {{- if and $routing (ne $routing "v0") $proxyUrl -}}
+  {{- $isDefault := eq $repository .Values._defaults.agentImageRepository -}}
+  {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
     {{- printf "%s/%s" $host $path -}}
@@ -256,12 +271,15 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      ref. When pulling through the proxy (routing v1+) that host is the proxy host, so
      re-key the auths entries from the upstream registry host to the proxy host (the
      username/password are unchanged — the proxy forwards the basic-auth /token call to
-     the real upstream). Otherwise pass imageCredentials through unchanged. */}}
+     the real upstream). Only rewrite if the agent repository is using the default.
+     If agent is custom, pass imageCredentials through unchanged to allow direct pulls
+     from private mirrors. */}}
 {{- define "entitle-agent.dockerConfigJson" -}}
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl -}}
+  {{- $agentIsDefault := eq .Values.agent.image.repository .Values._defaults.agentImageRepository -}}
+  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}
     {{- $newAuths := dict -}}
