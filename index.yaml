@@ -3,6 +3,22 @@ entries:
   entitle-agent:
   - apiVersion: v2
     appVersion: 1.0.0
+    created: "2026-07-13T10:33:35.721762156Z"
+    dependencies:
+    - condition: datadog.enabled
+      name: datadog
+      repository: https://helm.datadoghq.com
+      version: 2.30.16
+    description: An Entitle agent Helm chart for Kubernetes
+    digest: 6111c5453632414dfb62578881906bb24057f1ebc7ad060e22cf282492b25ad7
+    icon: https://app.entitle.io/favicon.ico
+    name: entitle-agent
+    type: application
+    urls:
+    - https://github.com/anycred/entitle-charts/releases/download/entitle-agent-2.9.0/entitle-agent-2.9.0.tgz
+    version: 2.9.0
+  - apiVersion: v2
+    appVersion: 1.0.0
     created: "2026-07-13T10:27:50.164620372Z"
     dependencies:
     - condition: datadog.enabled
@@ -457,4 +473,4 @@ entries:
     urls:
     - https://github.com/anycred/entitle-charts/releases/download/entitle-agent-0.1.2/entitle-agent-0.1.2.tgz
     version: 0.1.2
-generated: "2026-07-13T10:27:50.164824804Z"
+generated: "2026-07-13T10:33:35.722033632Z"
