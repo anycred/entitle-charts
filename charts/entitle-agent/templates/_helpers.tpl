@@ -387,6 +387,10 @@ healthcheck init container so validators run with identical configuration.
       name: {{ include "entitle-agent.agentSecretName" . }}
       key: {{ include "entitle-agent.agentSecretKey" . }}
       optional: false
+{{- if and .Values.imageCredentials (ne .Values.imageCredentials "") (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
+- name: ENTITLE_EXPLICITLY_SET_IMAGE_CREDENTIALS_HASH
+  value: {{ .Values.imageCredentials | sha256sum | quote }}
+{{- end }}
 {{- if eq .Values.platform.mode "azure" }}
 - name: AZURE_KEY_VAULT_NAME
   value: {{ .Values.platform.azure.keyVaultName }}

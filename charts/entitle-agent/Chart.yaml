@@ -30,7 +30,9 @@ icon: https://app.entitle.io/favicon.ico
 # to the proxy host; the agent and monitoring-agent images share one proxy URL.
 # v2.9.1: Remove _defaults from values.yaml - it was internal chart logic that
 # caused --reuse-values upgrade failures. Templates now use hardcoded defaults.
-version: 2.9.1
+# v2.10.0: Add ENTITLE_EXPLICITLY_SET_IMAGE_CREDENTIALS_HASH env var - SHA256 hash
+# of explicitly set imageCredentials (not extracted from token).
+version: 2.10.0
 appVersion: "1.0.0"
 
 dependencies:
