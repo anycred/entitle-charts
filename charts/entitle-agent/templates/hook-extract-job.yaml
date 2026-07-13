@@ -60,22 +60,12 @@ spec:
           {{- if not (or .Values.imagePullSecret.name $hasImageCreds) }}
           IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
 
-          # routing v1+ pulls the agent image through the proxy host, so the pull
-          # secret must be keyed to that host instead of the upstream registry
-          # (mirrors entitle-agent.dockerConfigJson for the render-time token path).
-          ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
-          PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
-          if [ -n "$IMAGE_CREDS" ] && [ -n "$ROUTING" ] && [ "$ROUTING" != "v0" ] && [ -n "$PLATFORM" ]; then
-            case "$PLATFORM" in
-              dev-*) PROXY_HOST="agent-${PLATFORM#dev-}.dev.entitle.io" ;;
-              *)     PROXY_HOST="agent.${PLATFORM}.entitle.io" ;;
-            esac
-            echo "routing=$ROUTING: re-keying pull secret to proxy host $PROXY_HOST"
-            IMAGE_CREDS=$(echo "$IMAGE_CREDS" | base64 -d \
-              | jq -c --arg h "$PROXY_HOST" '{auths: (.auths | to_entries | map(.key = $h) | from_entries)}' \
-              | base64 -w0)
-          fi
-
+          # Unlike the render-time token path, the secretRef path cannot rewrite
+          # the Deployment image to the proxy host: the token is opaque at render
+          # time and this hook runs before the Deployment exists. The agent image
+          # is therefore pulled directly from agent.image.repository (its upstream
+          # host), so the pull secret must stay keyed to that upstream host —
+          # patch the token's imageCredentials through unchanged.
           if [ -n "$IMAGE_CREDS" ]; then
             echo "Patching docker-login secret with extracted imageCredentials"
             kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
