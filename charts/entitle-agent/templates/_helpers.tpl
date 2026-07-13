@@ -16,6 +16,37 @@ gcr.io/datadoghq/agent
 {{- end -}}
 
 {{/*
+=============================================================================
+Safe accessors for fields introduced in v2.0.0 — prevents nil pointer errors
+during --reuse-values upgrades from v1.x (where these fields don't exist).
+=============================================================================
+*/}}
+
+{{/*
+Safe accessor for agent.secretRef.name — returns empty string if not set.
+Use this instead of direct .Values.agent.secretRef.name access.
+*/}}
+{{- define "entitle-agent.secretRefNameValue" -}}
+{{- if hasKey .Values.agent "secretRef" -}}
+{{- .Values.agent.secretRef.name | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessor for imagePullSecret.name — returns empty string if not set.
+Use this instead of direct .Values.imagePullSecret.name access.
+*/}}
+{{- define "entitle-agent.imagePullSecretNameValue" -}}
+{{- if hasKey .Values "imagePullSecret" -}}
+{{- .Values.imagePullSecret.name | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
@@ -166,9 +197,11 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
 */}}
 {{- define "entitle-agent.validateRequiredCredentials" -}}
   {{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
-  {{- $isRuntimeSecretRef := and .Values.agent.secretRef.name (not $hasToken) -}}
+  {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+  {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
+  {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
   {{- if not $isRuntimeSecretRef -}}
-    {{- if not .Values.imagePullSecret.name -}}
+    {{- if not $imagePullSecretName -}}
       {{- if not (include "entitle-agent.imageCredentials" . | trim) -}}
         {{- fail (include "entitle-agent.missingImageCredentialsMessage" .) -}}
       {{- end -}}
@@ -322,8 +355,9 @@ Returns agent.secretRef.name if set (pre-existing Secret managed outside Helm),
 otherwise falls back to the chart-managed secret.
 */}}
 {{- define "entitle-agent.agentSecretName" -}}
-{{- if .Values.agent.secretRef.name -}}
-{{- .Values.agent.secretRef.name -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- if $secretRefName -}}
+{{- $secretRefName -}}
 {{- else -}}
 {{- include "entitle-agent.fullname" . }}-secret
 {{- end -}}
@@ -334,7 +368,11 @@ Agent secret key — the key inside the Secret that holds the agent configuratio
 Defaults to ENTITLE_JSON_CONFIGURATION but can be overridden via agent.secretRef.key.
 */}}
 {{- define "entitle-agent.agentSecretKey" -}}
-{{- default "ENTITLE_JSON_CONFIGURATION" .Values.agent.secretRef.key -}}
+{{- if hasKey .Values.agent "secretRef" -}}
+{{- .Values.agent.secretRef.key | default "ENTITLE_JSON_CONFIGURATION" -}}
+{{- else -}}
+{{- "ENTITLE_JSON_CONFIGURATION" -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -342,8 +380,9 @@ Image pull secret name — resolves to the Secret for pulling the agent image.
 Returns imagePullSecret.name if set, otherwise the chart-managed docker-login secret.
 */}}
 {{- define "entitle-agent.imagePullSecretName" -}}
-{{- if .Values.imagePullSecret.name -}}
-{{- .Values.imagePullSecret.name -}}
+{{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
+{{- if $imagePullSecretName -}}
+{{- $imagePullSecretName -}}
 {{- else -}}
 {{- include "entitle-agent.fullname" . }}-docker-login
 {{- end -}}

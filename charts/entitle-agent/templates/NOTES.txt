@@ -1,4 +1,5 @@
 {{- $fullName := include "entitle-agent.fullname" . -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
 
 {{ .Chart.Name }} v{{ .Chart.Version }} deployed.
 
@@ -6,8 +7,8 @@
   Namespace: {{ .Release.Namespace }}
   Platform:  {{ .Values.platform.mode }}
 
-{{- if .Values.agent.secretRef.name }}
-  Token:     from pre-existing Secret "{{ .Values.agent.secretRef.name }}"
+{{- if $secretRefName }}
+  Token:     from pre-existing Secret "{{ $secretRefName }}"
 {{- else }}
   Token:     chart-managed Secret "{{ $fullName }}-secret"
 {{- end }}

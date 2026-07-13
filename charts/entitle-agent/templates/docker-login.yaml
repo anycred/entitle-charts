@@ -7,17 +7,19 @@ Docker registry login secret.
 */}}
 {{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
 {{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") }}
-{{- if not .Values.imagePullSecret.name -}}
+{{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- if not $imagePullSecretName -}}
 {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
 {{- $dockerConfig := include "entitle-agent.dockerConfigJson" . -}}
-{{- if or $imageCreds .Values.agent.secretRef.name }}
+{{- if or $imageCreds $secretRefName }}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ include "entitle-agent.fullname" . }}-docker-login
   labels:
     {{- include "entitle-agent.labels" . | nindent 4 }}
-  {{- if and .Values.agent.secretRef.name (not $hasToken) }}
+  {{- if and $secretRefName (not $hasToken) }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-20"
