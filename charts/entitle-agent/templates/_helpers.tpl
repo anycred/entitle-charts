@@ -1,4 +1,21 @@
 {{/*
+=============================================================================
+Default image repository constants for proxy-rewrite detection.
+IMPORTANT: These must match the defaults in values.yaml at:
+  - agent.image.repository
+  - datadog.image.repository
+=============================================================================
+*/}}
+
+{{- define "entitle-agent.defaultAgentRepository" -}}
+ghcr.io/anycred/entitle-agent
+{{- end -}}
+
+{{- define "entitle-agent.defaultDatadogRepository" -}}
+gcr.io/datadoghq/agent
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
@@ -232,14 +249,8 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $tag := .Values.datadog.image.tag | default "latest" -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- $isDefault := false -}}
-  {{- if hasKey .Values "_defaults" -}}
-    {{- if hasKey .Values._defaults "datadogImageRepository" -}}
-      {{- $isDefault = eq $repository .Values._defaults.datadogImageRepository -}}
-    {{- end -}}
-  {{- else -}}
-    {{- $isDefault = eq $repository "gcr.io/datadoghq/agent" -}}
-  {{- end -}}
+  {{- $defaultDatadogRepo := include "entitle-agent.defaultDatadogRepository" . -}}
+  {{- $isDefault := eq $repository $defaultDatadogRepo -}}
   {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
@@ -263,14 +274,8 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
-  {{- $isDefault := false -}}
-  {{- if hasKey .Values "_defaults" -}}
-    {{- if hasKey .Values._defaults "agentImageRepository" -}}
-      {{- $isDefault = eq $repository .Values._defaults.agentImageRepository -}}
-    {{- end -}}
-  {{- else -}}
-    {{- $isDefault = eq $repository "ghcr.io/anycred/entitle-agent" -}}
-  {{- end -}}
+  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
+  {{- $isDefault := eq $repository $defaultAgentRepo -}}
   {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
@@ -292,14 +297,8 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- $agentIsDefault := false -}}
-  {{- if hasKey .Values "_defaults" -}}
-    {{- if hasKey .Values._defaults "agentImageRepository" -}}
-      {{- $agentIsDefault = eq .Values.agent.image.repository .Values._defaults.agentImageRepository -}}
-    {{- end -}}
-  {{- else -}}
-    {{- $agentIsDefault = eq .Values.agent.image.repository "ghcr.io/anycred/entitle-agent" -}}
-  {{- end -}}
+  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
+  {{- $agentIsDefault := eq .Values.agent.image.repository $defaultAgentRepo -}}
   {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}

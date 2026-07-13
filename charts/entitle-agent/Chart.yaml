@@ -28,8 +28,8 @@ icon: https://app.entitle.io/favicon.ico
 # keyed to the upstream registry host that the un-rewritten image is pulled from.
 # v2.9.0 (DOPS-678): also pull the agent image through the proxy (routing v1+), keyed
 # to the proxy host; the agent and monitoring-agent images share one proxy URL.
-# v2.9.1: Make _defaults section optional for backward compatibility with --reuse-values
-# upgrades from charts < 2.9.0.
+# v2.9.1: Remove _defaults from values.yaml - it was internal chart logic that
+# caused --reuse-values upgrade failures. Templates now use hardcoded defaults.
 version: 2.9.1
 appVersion: "1.0.0"
 
