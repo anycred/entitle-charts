@@ -7,7 +7,8 @@ Only runs when agent.secretRef.name is set and agent.token is not provided.
 The referenced secret must exist before the chart is deployed.
 */}}
 {{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
-{{- if and .Values.agent.secretRef.name (not $hasToken) }}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- if and $secretRefName (not $hasToken) }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -37,7 +38,7 @@ spec:
 
           NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
-          echo "Reading token from secret {{ .Values.agent.secretRef.name }}"
+          echo "Reading token from secret {{ $secretRefName }}"
 
           # Read the token JSON from the mounted secret file
           TOKEN_JSON=$(cat "/secret/{{ include "entitle-agent.agentSecretKey" . }}")
@@ -57,7 +58,8 @@ spec:
 
           # --- Patch docker-login secret ---
           {{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
-          {{- if not (or .Values.imagePullSecret.name $hasImageCreds) }}
+          {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . }}
+          {{- if not (or $imagePullSecretName $hasImageCreds) }}
           IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
 
           # Unlike the render-time token path, the secretRef path cannot rewrite
@@ -100,5 +102,5 @@ spec:
       volumes:
       - name: token-secret
         secret:
-          secretName: {{ .Values.agent.secretRef.name }}
+          secretName: {{ $secretRefName }}
 {{- end }}

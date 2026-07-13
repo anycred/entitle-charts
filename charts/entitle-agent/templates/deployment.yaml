@@ -126,7 +126,9 @@ spec:
           successThreshold: 1
           timeoutSeconds: 10
       {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
-      {{- if or .Values.imagePullSecret.name $imageCreds .Values.agent.secretRef.name }}
+      {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
+      {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+      {{- if or $imagePullSecretName $imageCreds $secretRefName }}
       imagePullSecrets:
         - name: {{ include "entitle-agent.imagePullSecretName" . }}
       {{- end }}
