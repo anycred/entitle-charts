@@ -18,7 +18,12 @@ icon: https://app.entitle.io/favicon.ico
 # v2.8.0 (DOPS-678): also pull the agent image through the proxy (routing v1+), keyed
 # to the proxy host; the agent and monitoring-agent images share one proxy URL.
 # v2.8.1: remove the ci/ test scaffolding (no chart behavior change).
-version: 2.8.1
+# v2.8.2 (DOPS-678): fix 401 ImagePullBackOff on the agent.secretRef + routing v1
+# path. The secretRef path can't rewrite the Deployment image to the proxy host
+# (token is opaque at render time), so the extract-pull-secret hook no longer
+# re-keys the pull secret to the proxy host — it keeps the token's imageCredentials
+# keyed to the upstream registry host that the un-rewritten image is pulled from.
+version: 2.8.2
 appVersion: "1.0.0"
 
 dependencies:
