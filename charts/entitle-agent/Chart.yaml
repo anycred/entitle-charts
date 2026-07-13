@@ -32,7 +32,9 @@ icon: https://app.entitle.io/favicon.ico
 # caused --reuse-values upgrade failures. Templates now use hardcoded defaults.
 # v2.9.2: Fix --reuse-values upgrades from v1.x - use dig to safely access
 # agent.secretRef.name and imagePullSecret.name (introduced in v2.0.0).
-version: 2.9.2
+# v2.10.0: Add ENTITLE_EXPLICITLY_SET_IMAGE_CREDENTIALS_HASH env var - SHA256 hash
+# of explicitly set imageCredentials (not extracted from token).
+version: 2.10.0
 appVersion: "1.0.0"
 
 dependencies:
