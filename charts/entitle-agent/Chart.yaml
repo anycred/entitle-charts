@@ -36,7 +36,10 @@ icon: https://app.entitle.io/favicon.ico
 # of explicitly set imageCredentials (not extracted from token).
 # v2.10.1: Fix --reuse-values upgrades from pre-v2.8.0 releases - safely access
 # datadog.image.repository/tag (introduced in v2.8.0) in the datadogImage helper.
-version: 2.10.1
+# v2.10.2: Fix nil pointer in serviceAccountAnnotations when platform.mode=gcp on
+# --reuse-values upgrades from releases without a platform.gke block (e.g. v1.1.0):
+# `default` evaluates eagerly, so the gke fallback now goes through safe accessors.
+version: 2.10.2
 appVersion: "1.0.0"
 
 dependencies:

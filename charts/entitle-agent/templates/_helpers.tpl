@@ -73,6 +73,33 @@ Use this instead of direct .Values.datadog.image.tag access.
 {{- end -}}
 
 {{/*
+Safe accessor for platform.gke.serviceAccount — returns empty string when the
+deprecated platform.gke block is absent (e.g. --reuse-values upgrades from
+releases that only had platform.gcp, like v1.1.0). `default` evaluates its
+arguments eagerly, so the fallback must not dereference platform.gke directly.
+Use this instead of direct .Values.platform.gke.serviceAccount access.
+*/}}
+{{- define "entitle-agent.gkeServiceAccountValue" -}}
+{{- if hasKey .Values.platform "gke" -}}
+{{- .Values.platform.gke.serviceAccount | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessor for platform.gke.projectId — returns empty string if not set.
+Use this instead of direct .Values.platform.gke.projectId access.
+*/}}
+{{- define "entitle-agent.gkeProjectIdValue" -}}
+{{- if hasKey .Values.platform "gke" -}}
+{{- .Values.platform.gke.projectId | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
@@ -141,8 +168,8 @@ based on platform.mode.
 {{- if eq .Values.platform.mode "aws" -}}
 eks.amazonaws.com/role-arn: {{ .Values.platform.aws.iamRole }}
 {{- else if eq .Values.platform.mode "gcp" }}
-{{- $gcpSA := .Values.platform.gcp.serviceAccount | default .Values.platform.gke.serviceAccount }}
-{{- $gcpProject := .Values.platform.gcp.projectId | default .Values.platform.gke.projectId }}
+{{- $gcpSA := .Values.platform.gcp.serviceAccount | default (include "entitle-agent.gkeServiceAccountValue" .) }}
+{{- $gcpProject := .Values.platform.gcp.projectId | default (include "entitle-agent.gkeProjectIdValue" .) }}
 iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" $gcpSA $gcpProject | quote}}
 {{- else if eq .Values.platform.mode "azure" }}
 azure.workload.identity/client-id: {{ .Values.platform.azure.clientId }}
