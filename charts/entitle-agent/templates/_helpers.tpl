@@ -47,6 +47,32 @@ Use this instead of direct .Values.imagePullSecret.name access.
 {{- end -}}
 
 {{/*
+Safe accessor for datadog.image.repository — falls back to the chart default
+when the datadog.image block is absent (introduced in v2.8.0; missing on
+--reuse-values upgrades from older releases).
+Use this instead of direct .Values.datadog.image.repository access.
+*/}}
+{{- define "entitle-agent.datadogImageRepositoryValue" -}}
+{{- if hasKey .Values.datadog "image" -}}
+{{- .Values.datadog.image.repository | default (include "entitle-agent.defaultDatadogRepository" .) -}}
+{{- else -}}
+{{- include "entitle-agent.defaultDatadogRepository" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessor for datadog.image.tag — returns "latest" if not set.
+Use this instead of direct .Values.datadog.image.tag access.
+*/}}
+{{- define "entitle-agent.datadogImageTagValue" -}}
+{{- if hasKey .Values.datadog "image" -}}
+{{- .Values.datadog.image.tag | default "latest" -}}
+{{- else -}}
+{{- "latest" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
@@ -278,8 +304,8 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
                              If a custom (non-default) repository is explicitly configured,
                              use it as-is to allow direct pulls from private mirrors. */}}
 {{- define "entitle-agent.datadogImage" -}}
-  {{- $repository := .Values.datadog.image.repository -}}
-  {{- $tag := .Values.datadog.image.tag | default "latest" -}}
+  {{- $repository := include "entitle-agent.datadogImageRepositoryValue" . -}}
+  {{- $tag := include "entitle-agent.datadogImageTagValue" . -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $defaultDatadogRepo := include "entitle-agent.defaultDatadogRepository" . -}}

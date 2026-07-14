@@ -34,7 +34,9 @@ icon: https://app.entitle.io/favicon.ico
 # agent.secretRef.name and imagePullSecret.name (introduced in v2.0.0).
 # v2.10.0: Add ENTITLE_EXPLICITLY_SET_IMAGE_CREDENTIALS_HASH env var - SHA256 hash
 # of explicitly set imageCredentials (not extracted from token).
-version: 2.10.0
+# v2.10.1: Fix --reuse-values upgrades from pre-v2.8.0 releases - safely access
+# datadog.image.repository/tag (introduced in v2.8.0) in the datadogImage helper.
+version: 2.10.1
 appVersion: "1.0.0"
 
 dependencies:
