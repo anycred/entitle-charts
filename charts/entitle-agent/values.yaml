@@ -26,6 +26,9 @@ platform:
   mode: "native"
   aws:
     iamRole: ""           # IAM role ARN for the agent's IRSA service account annotation
+  # When this block is absent from the release values (--reuse-values upgrades from v1.0.x,
+  # which only had platform.gke), the entitle-agent.gcpServiceAccountValue/gcpProjectIdValue
+  # safe accessors in templates/_helpers.tpl fall back to empty strings.
   gcp:
     serviceAccount: ""    # GKE service account name (without @project.iam.gserviceaccount.com)
     projectId: ""         # GCP project ID
