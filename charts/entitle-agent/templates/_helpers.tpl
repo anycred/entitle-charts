@@ -100,6 +100,32 @@ Use this instead of direct .Values.platform.gke.projectId access.
 {{- end -}}
 
 {{/*
+Safe accessor for platform.gcp.serviceAccount — returns empty string when the
+platform.gcp block is absent (--reuse-values upgrades from v1.0.x, which only
+had platform.gke and defaulted platform.mode to "gcp" for every install).
+Use this instead of direct .Values.platform.gcp.serviceAccount access.
+*/}}
+{{- define "entitle-agent.gcpServiceAccountValue" -}}
+{{- if hasKey .Values.platform "gcp" -}}
+{{- .Values.platform.gcp.serviceAccount | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessor for platform.gcp.projectId — returns empty string if not set.
+Use this instead of direct .Values.platform.gcp.projectId access.
+*/}}
+{{- define "entitle-agent.gcpProjectIdValue" -}}
+{{- if hasKey .Values.platform "gcp" -}}
+{{- .Values.platform.gcp.projectId | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "entitle-agent.name" -}}
@@ -168,8 +194,8 @@ based on platform.mode.
 {{- if eq .Values.platform.mode "aws" -}}
 eks.amazonaws.com/role-arn: {{ .Values.platform.aws.iamRole }}
 {{- else if eq .Values.platform.mode "gcp" }}
-{{- $gcpSA := .Values.platform.gcp.serviceAccount | default (include "entitle-agent.gkeServiceAccountValue" .) }}
-{{- $gcpProject := .Values.platform.gcp.projectId | default (include "entitle-agent.gkeProjectIdValue" .) }}
+{{- $gcpSA := (include "entitle-agent.gcpServiceAccountValue" .) | default (include "entitle-agent.gkeServiceAccountValue" .) }}
+{{- $gcpProject := (include "entitle-agent.gcpProjectIdValue" .) | default (include "entitle-agent.gkeProjectIdValue" .) }}
 iam.gke.io/gcp-service-account: {{ printf "%s@%s.iam.gserviceaccount.com" $gcpSA $gcpProject | quote}}
 {{- else if eq .Values.platform.mode "azure" }}
 azure.workload.identity/client-id: {{ .Values.platform.azure.clientId }}

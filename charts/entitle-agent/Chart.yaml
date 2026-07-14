@@ -39,7 +39,10 @@ icon: https://app.entitle.io/favicon.ico
 # v2.10.2: Fix nil pointer in serviceAccountAnnotations when platform.mode=gcp on
 # --reuse-values upgrades from releases without a platform.gke block (e.g. v1.1.0):
 # `default` evaluates eagerly, so the gke fallback now goes through safe accessors.
-version: 2.10.2
+# v2.10.3: Same fix for the platform.gcp side - the oldest versions (v1.0.x) had no
+# platform.gcp block and defaulted platform.mode to "gcp" for every install, so
+# --reuse-values upgrades from v1.0.x nil-panicked on .Values.platform.gcp.serviceAccount.
+version: 2.10.3
 appVersion: "1.0.0"
 
 dependencies:
