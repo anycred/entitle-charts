@@ -42,10 +42,8 @@ icon: https://app.entitle.io/favicon.ico
 # v2.10.3: Same fix for the platform.gcp side - the oldest versions (v1.0.x) had no
 # platform.gcp block and defaulted platform.mode to "gcp" for every install, so
 # --reuse-values upgrades from v1.0.x nil-panicked on .Values.platform.gcp.serviceAccount.
-# v2.11.0 (ICH-5042): native custom CA bundle support - mount a combined PEM bundle
-# (public CAs + enterprise CA) from a pre-existing Secret or ConfigMap via customCa.*
-# values and set ENTITLE_CUSTOM_CA_CERT_PATH (agent >= 26.03.2), replacing the manual
-# Deployment edit that was wiped on every helm upgrade (SUP-259/SUP-538).
+# v2.11.0 (ICH-5042): customCa.* values mount a combined CA bundle from a Secret/ConfigMap
+# and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
 version: 2.11.0
 appVersion: "1.0.0"
 

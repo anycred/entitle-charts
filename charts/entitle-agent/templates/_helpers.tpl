@@ -130,9 +130,7 @@ Use this instead of direct .Values.platform.gcp.projectId access.
      ============================================================ */}}
 
 {{/*
-Safe accessor for customCa.secretName — returns empty string when the customCa
-block is absent (--reuse-values upgrades from releases older than v2.11.0).
-Use this instead of direct .Values.customCa.secretName access.
+Safe accessor for customCa.secretName — empty when the block is absent (pre-v2.11.0 --reuse-values).
 */}}
 {{- define "entitle-agent.customCaSecretNameValue" -}}
 {{- if hasKey .Values "customCa" -}}
@@ -143,8 +141,7 @@ Use this instead of direct .Values.customCa.secretName access.
 {{- end -}}
 
 {{/*
-Safe accessor for customCa.configMapName — returns empty string if not set.
-Use this instead of direct .Values.customCa.configMapName access.
+Safe accessor for customCa.configMapName — empty if not set.
 */}}
 {{- define "entitle-agent.customCaConfigMapNameValue" -}}
 {{- if hasKey .Values "customCa" -}}
@@ -155,8 +152,7 @@ Use this instead of direct .Values.customCa.configMapName access.
 {{- end -}}
 
 {{/*
-Safe accessor for customCa.key — falls back to "ca-bundle.pem" if not set.
-Use this instead of direct .Values.customCa.key access.
+Safe accessor for customCa.key — defaults to "ca-bundle.pem".
 */}}
 {{- define "entitle-agent.customCaKeyValue" -}}
 {{- if hasKey .Values "customCa" -}}
@@ -167,7 +163,7 @@ Use this instead of direct .Values.customCa.key access.
 {{- end -}}
 
 {{/*
-Whether custom CA support is enabled — truthy when either source is set.
+Truthy when either custom CA source is set.
 */}}
 {{- define "entitle-agent.customCaEnabled" -}}
 {{- if or (include "entitle-agent.customCaSecretNameValue" .) (include "entitle-agent.customCaConfigMapNameValue" .) -}}
@@ -176,21 +172,21 @@ true
 {{- end -}}
 
 {{/*
-Directory where the custom CA bundle is mounted in the agent containers.
+Mount directory for the custom CA bundle.
 */}}
 {{- define "entitle-agent.customCaMountPath" -}}
 /etc/entitle/custom-ca
 {{- end -}}
 
 {{/*
-Full path of the mounted CA bundle file — the value of ENTITLE_CUSTOM_CA_CERT_PATH.
+Full mounted bundle path — the ENTITLE_CUSTOM_CA_CERT_PATH value.
 */}}
 {{- define "entitle-agent.customCaCertPath" -}}
 {{- printf "%s/%s" (include "entitle-agent.customCaMountPath" .) (include "entitle-agent.customCaKeyValue" .) -}}
 {{- end -}}
 
 {{/*
-Validates that at most one custom CA source is configured.
+Fails render when both custom CA sources are set.
 */}}
 {{- define "entitle-agent.validateCustomCa" -}}
 {{- if and (include "entitle-agent.customCaSecretNameValue" .) (include "entitle-agent.customCaConfigMapNameValue" .) -}}
