@@ -532,6 +532,9 @@ The following table lists the configurable parameters of the Entitle-agent chart
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|-----------------------------------|
 | `imageCredentials`               | Base64-encoded dockerconfigjson. **Optional** — auto-extracted from `agent.token` if not set.                                                                    | `"MISSING_CUSTOMER_DATA"`         | `false`                           |
 | `imagePullSecret.name`           | Name of existing `kubernetes.io/dockerconfigjson` Secret for image pull.                                                                                         | `""`                              | `false`                           |
+| `customCa.secretName`            | Name of a pre-existing Secret holding a combined CA bundle to trust (see [Custom CA bundle](#custom-ca-bundle)). Mutually exclusive with `customCa.configMapName`. | `""`                              | `false`                           |
+| `customCa.configMapName`         | Name of a pre-existing ConfigMap holding a combined CA bundle to trust. Mutually exclusive with `customCa.secretName`.                                           | `""`                              | `false`                           |
+| `customCa.key`                   | Key within the Secret/ConfigMap that holds the combined PEM bundle.                                                                                              | `"ca-bundle.pem"`                 | `false`                           |
 | `kmsType`                        | KMS for agent to save secrets. Values: `kubernetes_secret_manager`, `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`        | `"kubernetes_secret_manager"`     | `true`                            |
 | `platform.mode`                  | Cloud platform. Values: `native`, `aws`, `gcp`, `azure`                                                                                                         | `"native"`                        | `true`                            |
 | `platform.aws.iamRole`           | IAM role ARN for agent's IRSA service account annotation                                                                                                         | `""`                              | `true` if `platform.mode="aws"`   |
@@ -561,3 +564,29 @@ The following table lists the configurable parameters of the Entitle-agent chart
 | `datadog.datadog.apiKey`         | Datadog API key                                                                                                                                                  | `""`                              | `false`                           |
 | `datadog.datadog.tags`           | Datadog tags (https://docs.datadoghq.com/tagging/)                                                                                                               | `[]`                              | `false`                           |
 | `datadog.providers.gke.autopilot`| Whether to enable GKE autopilot mode                                                                                                                             | `false`                           | `false`                           |
+
+## Custom CA bundle
+
+If the agent's outbound TLS is intercepted by an enterprise proxy, or it must reach services signed by a private CA, mount a custom CA bundle via chart values and the agent (version **26.03.2+**) will trust it for all outbound connections (Kafka, remote settings, integrations).
+
+**IMPORTANT**: the bundle must be a **combined** PEM file — the standard public CAs **plus** your enterprise CA concatenated. The agent points its entire trust store at this file (it does not append to the system store), so a file containing only the enterprise CA breaks trust for public endpoints.
+
+1. Build the combined bundle (on any Linux host with system CA certs):
+    ```shell
+    cat /etc/ssl/certs/ca-certificates.crt my-enterprise-ca.pem > ca-bundle.pem
+    ```
+2. Create a Secret **or** ConfigMap from it in the agent's namespace:
+    ```shell
+    kubectl create secret generic entitle-custom-ca --from-file=ca-bundle.pem -n ${NAMESPACE}
+    # or:
+    kubectl create configmap entitle-custom-ca --from-file=ca-bundle.pem -n ${NAMESPACE}
+    ```
+3. Point the chart at it (set exactly one of the two):
+    ```shell
+    --set customCa.secretName=entitle-custom-ca
+    # or:
+    --set customCa.configMapName=entitle-custom-ca
+    ```
+    If your Secret/ConfigMap uses a key other than `ca-bundle.pem`, also set `customCa.key`.
+
+The chart mounts the bundle read-only at `/etc/entitle/custom-ca/<key>` and sets the `ENTITLE_CUSTOM_CA_CERT_PATH` env var automatically, so the configuration survives `helm upgrade` (no manual Deployment edits needed).

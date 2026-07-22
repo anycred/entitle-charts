@@ -18,6 +18,11 @@ imagePullSecret:
   # When set, imageCredentials is ignored and no docker-login Secret is created.
   name: ""
 
+customCa:
+  secretName: ""
+  configMapName: ""
+  key: "ca-bundle.pem"
+
 # -- platform: Cloud platform configuration.
 # Determines service account annotations for IRSA (AWS), Workload Identity (GCP/Azure).
 platform:
