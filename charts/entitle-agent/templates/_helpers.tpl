@@ -125,6 +125,79 @@ Use this instead of direct .Values.platform.gcp.projectId access.
 {{- end -}}
 {{- end -}}
 
+{{/* ============================================================
+     Custom CA bundle helpers (ICH-5042)
+     ============================================================ */}}
+
+{{/*
+Safe accessor for customCa.secretName — returns empty string when the customCa
+block is absent (--reuse-values upgrades from releases older than v2.11.0).
+Use this instead of direct .Values.customCa.secretName access.
+*/}}
+{{- define "entitle-agent.customCaSecretNameValue" -}}
+{{- if hasKey .Values "customCa" -}}
+{{- .Values.customCa.secretName | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessor for customCa.configMapName — returns empty string if not set.
+Use this instead of direct .Values.customCa.configMapName access.
+*/}}
+{{- define "entitle-agent.customCaConfigMapNameValue" -}}
+{{- if hasKey .Values "customCa" -}}
+{{- .Values.customCa.configMapName | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessor for customCa.key — falls back to "ca-bundle.pem" if not set.
+Use this instead of direct .Values.customCa.key access.
+*/}}
+{{- define "entitle-agent.customCaKeyValue" -}}
+{{- if hasKey .Values "customCa" -}}
+{{- .Values.customCa.key | default "ca-bundle.pem" -}}
+{{- else -}}
+{{- "ca-bundle.pem" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Whether custom CA support is enabled — truthy when either source is set.
+*/}}
+{{- define "entitle-agent.customCaEnabled" -}}
+{{- if or (include "entitle-agent.customCaSecretNameValue" .) (include "entitle-agent.customCaConfigMapNameValue" .) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Directory where the custom CA bundle is mounted in the agent containers.
+*/}}
+{{- define "entitle-agent.customCaMountPath" -}}
+/etc/entitle/custom-ca
+{{- end -}}
+
+{{/*
+Full path of the mounted CA bundle file — the value of ENTITLE_CUSTOM_CA_CERT_PATH.
+*/}}
+{{- define "entitle-agent.customCaCertPath" -}}
+{{- printf "%s/%s" (include "entitle-agent.customCaMountPath" .) (include "entitle-agent.customCaKeyValue" .) -}}
+{{- end -}}
+
+{{/*
+Validates that at most one custom CA source is configured.
+*/}}
+{{- define "entitle-agent.validateCustomCa" -}}
+{{- if and (include "entitle-agent.customCaSecretNameValue" .) (include "entitle-agent.customCaConfigMapNameValue" .) -}}
+{{- fail "entitle-agent: customCa.secretName and customCa.configMapName are mutually exclusive — set only one." -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Expand the name of the chart.
 */}}
@@ -516,6 +589,10 @@ healthcheck init container so validators run with identical configuration.
 {{- if not .Values.datadog.enabled }}
 - name: ENTITLE_LOG_TO_FILE
   value: "true"
+{{- end }}
+{{- if include "entitle-agent.customCaEnabled" . }}
+- name: ENTITLE_CUSTOM_CA_CERT_PATH
+  value: {{ include "entitle-agent.customCaCertPath" . | quote }}
 {{- end }}
 {{- end }}
 

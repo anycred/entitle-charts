@@ -34,6 +34,27 @@
         }
       }
     },
+    "customCa": {
+      "type": "object",
+      "description": "Trust a custom/enterprise CA: mount a combined PEM bundle (public CAs + enterprise CA) from a pre-existing Secret or ConfigMap and set ENTITLE_CUSTOM_CA_CERT_PATH. Set only one of secretName/configMapName. Requires agent 26.03.2+.",
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "default": "",
+          "description": "Name of a pre-existing Secret holding the CA bundle. Mutually exclusive with configMapName."
+        },
+        "configMapName": {
+          "type": "string",
+          "default": "",
+          "description": "Name of a pre-existing ConfigMap holding the CA bundle. Mutually exclusive with secretName."
+        },
+        "key": {
+          "type": "string",
+          "default": "ca-bundle.pem",
+          "description": "Key within the Secret/ConfigMap that holds the combined PEM bundle."
+        }
+      }
+    },
     "externalKmsParams": {
       "type": "object",
       "properties": {
