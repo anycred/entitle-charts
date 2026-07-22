@@ -18,13 +18,10 @@ imagePullSecret:
   # When set, imageCredentials is ignored and no docker-login Secret is created.
   name: ""
 
-# -- customCa: mount a CA bundle from a pre-existing Secret or ConfigMap (set exactly one)
-# and set ENTITLE_CUSTOM_CA_CERT_PATH (agent 26.03.2+); the bundle must be COMBINED
-# (public CAs + enterprise CA) because the agent replaces its trust store with it.
 customCa:
-  secretName: ""        # Pre-existing Secret holding the bundle
-  configMapName: ""     # Pre-existing ConfigMap holding the bundle
-  key: "ca-bundle.pem"  # Key holding the PEM bundle
+  secretName: ""
+  configMapName: ""
+  key: "ca-bundle.pem"
 
 # -- platform: Cloud platform configuration.
 # Determines service account annotations for IRSA (AWS), Workload Identity (GCP/Azure).
