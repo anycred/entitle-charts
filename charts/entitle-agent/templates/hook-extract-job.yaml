@@ -62,12 +62,10 @@ spec:
           {{- if not (or $imagePullSecretName $hasImageCreds) }}
           IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
 
-          # Unlike the render-time token path, the secretRef path cannot rewrite
-          # the Deployment image to the proxy host: the token is opaque at render
-          # time and this hook runs before the Deployment exists. The agent image
-          # is therefore pulled directly from agent.image.repository (its upstream
-          # host), so the pull secret must stay keyed to that upstream host —
-          # patch the token's imageCredentials through unchanged.
+          # Extract imageCredentials and patch the docker-login secret.
+          # Note: The pull secret is initially keyed to the upstream registry host.
+          # If routing v1 is active, the hook-patch-image-job.yaml hook (runs post-install)
+          # will re-key it to the proxy host after patching the Deployment's image.
           if [ -n "$IMAGE_CREDS" ]; then
             echo "Patching docker-login secret with extracted imageCredentials"
             kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
