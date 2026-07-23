@@ -1,0 +1,58 @@
+{{/*
+Post-install/upgrade hook Job: reads the secretRef token, extracts routing +
+platform fields, and patches the Deployment's container image to use the proxy
+registry (agent.{platform}.entitle.io) when routing=v1.
+
+Only runs when agent.secretRef.name is set and agent.token is not provided.
+The referenced secret must exist before the chart is deployed.
+
+This is necessary because the Deployment template cannot access the token at
+render time when using secretRef — the routing logic in _helpers.tpl returns
+the default ghcr.io repository. This hook corrects that post-deploy.
+*/}}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- $defaultRepo := include "entitle-agent.defaultAgentRepository" . -}}
+{{- $configuredRepo := .Values.agent.image.repository -}}
+{{- $isDefaultRepo := eq $configuredRepo $defaultRepo -}}
+{{- if and $secretRefName (not $hasToken) $isDefaultRepo }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "entitle-agent.fullname" . }}-patch-image
+  labels:
+    {{- include "entitle-agent.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "entitle-agent.fullname" . }}-hook
+      restartPolicy: Never
+      containers:
+      - name: patch-image
+        image: bitnami/kubectl:latest
+        command: ["/bin/bash"]
+        args: ["/scripts/patch-image.sh"]
+        volumeMounts:
+        - name: token-secret
+          mountPath: /secret
+          readOnly: true
+        - name: script
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: token-secret
+        secret:
+          secretName: {{ $secretRefName }}
+      - name: script
+        configMap:
+          name: {{ include "entitle-agent.fullname" . }}-patch-image-script
+          defaultMode: 0755
+{{- end }}
