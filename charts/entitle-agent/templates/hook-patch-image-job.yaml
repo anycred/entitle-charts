@@ -1,0 +1,153 @@
+{{/*
+Post-install/upgrade hook Job: reads the secretRef token, extracts routing +
+platform fields, and patches the Deployment's container image to use the proxy
+registry (agent.{platform}.entitle.io) when routing=v1.
+
+Only runs when agent.secretRef.name is set and agent.token is not provided.
+The referenced secret must exist before the chart is deployed.
+
+This is necessary because the Deployment template cannot access the token at
+render time when using secretRef — the routing logic in _helpers.tpl returns
+the default ghcr.io repository. This hook corrects that post-deploy.
+*/}}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- $defaultRepo := include "entitle-agent.defaultAgentRepository" . -}}
+{{- $configuredRepo := .Values.agent.image.repository -}}
+{{- $isDefaultRepo := eq $configuredRepo $defaultRepo -}}
+{{- if and $secretRefName (not $hasToken) $isDefaultRepo }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "entitle-agent.fullname" . }}-patch-image
+  labels:
+    {{- include "entitle-agent.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "entitle-agent.fullname" . }}-hook
+      restartPolicy: Never
+      containers:
+      - name: patch-image
+        image: bitnami/kubectl:latest
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -e
+
+          NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          DEPLOYMENT_NAME="{{ include "entitle-agent.fullname" . }}"
+          DEFAULT_REPO="{{ $defaultRepo }}"
+
+          echo "Reading token from secret {{ $secretRefName }}"
+
+          # Read the token JSON from the mounted secret file
+          TOKEN_JSON=$(cat "/secret/{{ include "entitle-agent.agentSecretKey" . }}")
+
+          # Unwrap BASE64_CONFIGURATION to get the raw token blob
+          B64_CONFIG=$(echo "$TOKEN_JSON" | jq -r '.BASE64_CONFIGURATION // empty')
+
+          if [ -z "$B64_CONFIG" ]; then
+            echo "ERROR: Could not extract BASE64_CONFIGURATION from secret"
+            exit 1
+          fi
+
+          # Decode to get the full token JSON
+          FULL_TOKEN=$(echo "$B64_CONFIG" | base64 -d)
+
+          # Extract routing and platform fields
+          ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
+          PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
+
+          echo "Routing: $ROUTING"
+          echo "Platform: $PLATFORM"
+
+          # Check if routing v1 is active
+          if [ "$ROUTING" = "v1" ] || [ "$ROUTING" = "v2" ]; then
+            if [ -z "$PLATFORM" ]; then
+              echo "WARNING: routing=$ROUTING but platform field is missing. Cannot determine proxy URL."
+              exit 0
+            fi
+
+            # Calculate proxy host based on platform
+            if [[ "$PLATFORM" =~ ^dev- ]]; then
+              # dev-one, dev-two, dev-three -> agent-one.dev.entitle.io
+              DEV_NUM="${PLATFORM#dev-}"
+              PROXY_HOST="agent-${DEV_NUM}.dev.entitle.io"
+            else
+              # Standard: agent.{platform}.entitle.io
+              PROXY_HOST="agent.${PLATFORM}.entitle.io"
+            fi
+
+            # Extract the repository path from the default repo (after the first /)
+            REPO_PATH=$(echo "$DEFAULT_REPO" | sed 's|^[^/]*/||')
+            PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
+
+            echo "Patching deployment to use proxy image: $PROXY_IMAGE"
+
+            # Get current image tag from deployment
+            CURRENT_IMAGE=$(kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}')
+            CURRENT_TAG="${CURRENT_IMAGE##*:}"
+
+            NEW_IMAGE="${PROXY_IMAGE}:${CURRENT_TAG}"
+
+            echo "Current image: $CURRENT_IMAGE"
+            echo "New image: $NEW_IMAGE"
+
+            # Patch the deployment
+            kubectl patch deployment "$DEPLOYMENT_NAME" \
+              -n "$NAMESPACE" \
+              --type strategic \
+              -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"$DEPLOYMENT_NAME\",\"image\":\"$NEW_IMAGE\"}]}}}}"
+
+            echo "Deployment patched successfully. Rolling update will commence."
+
+            # Also patch imagePullSecrets to use the proxy host
+            # The extract-pull-secret hook already created the secret, but it's keyed
+            # to the upstream registry. We need to re-key it to the proxy host.
+            IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
+            if [ -n "$IMAGE_CREDS" ]; then
+              echo "Re-keying docker-login secret for proxy host: $PROXY_HOST"
+
+              # Decode the imageCredentials to get the auth object
+              DECODED_CREDS=$(echo "$IMAGE_CREDS" | base64 -d)
+
+              # Extract the first auth entry (we'll use the same credentials)
+              AUTH_ENTRY=$(echo "$DECODED_CREDS" | jq -r '.auths | to_entries | .[0].value')
+
+              # Create new dockerconfigjson with proxy host as key
+              NEW_CREDS=$(jq -n \
+                --arg host "$PROXY_HOST" \
+                --argjson auth "$AUTH_ENTRY" \
+                '{auths: {($host): $auth}}' | base64 -w0)
+
+              kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
+                -n "$NAMESPACE" \
+                --type merge \
+                -p "{\"data\":{\".dockerconfigjson\":\"${NEW_CREDS}\"}}"
+
+              echo "Pull secret re-keyed successfully."
+            fi
+
+          else
+            echo "Routing is not v1/v2 (found: '$ROUTING'). Skipping image patch."
+          fi
+
+          echo "Done."
+        volumeMounts:
+        - name: token-secret
+          mountPath: /secret
+          readOnly: true
+      volumes:
+      - name: token-secret
+        secret:
+          secretName: {{ $secretRefName }}
+{{- end }}
