@@ -36,7 +36,7 @@
     },
     "customCa": {
       "type": "object",
-      "description": "Trust a custom/enterprise CA: mount a combined PEM bundle (public CAs + enterprise CA) from a pre-existing Secret or ConfigMap and set ENTITLE_CUSTOM_CA_CERT_PATH. Set only one of secretName/configMapName. Requires agent 26.03.2+.",
+      "description": "Trust a custom/enterprise CA: mount a combined PEM bundle (public CAs + enterprise CA) from a pre-existing Secret or ConfigMap and set ENTITLE_CUSTOM_CA_CERT_PATH. Set only one of secretName/configMapName. Requires agent image 2.9.10+.",
       "properties": {
         "secretName": {
           "type": "string",

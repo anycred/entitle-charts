@@ -567,7 +567,7 @@ The following table lists the configurable parameters of the Entitle-agent chart
 
 ## Custom CA bundle
 
-If the agent's outbound TLS is intercepted by an enterprise proxy, or it must reach services signed by a private CA, mount a custom CA bundle via chart values and the agent (version **26.03.2+**) will trust it for all outbound connections (Kafka, remote settings, integrations).
+If the agent's outbound TLS is intercepted by an enterprise proxy, or it must reach services signed by a private CA, mount a custom CA bundle via chart values and the agent (image version **2.9.10+**) will trust it for all outbound connections (Kafka, remote settings, integrations).
 
 **IMPORTANT**: the bundle must be a **combined** PEM file — the standard public CAs **plus** your enterprise CA concatenated. The agent points its entire trust store at this file (it does not append to the system store), so a file containing only the enterprise CA breaks trust for public endpoints.
 
