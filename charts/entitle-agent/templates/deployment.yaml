@@ -1,5 +1,6 @@
 {{- include "entitle-agent.validateAgentVersion" . -}}
 {{- include "entitle-agent.validateRequiredCredentials" . -}}
+{{- include "entitle-agent.validateCustomCa" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -95,10 +96,17 @@ spec:
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        {{- if not .Values.datadog.enabled }}
+        {{- if or (not .Values.datadog.enabled) (include "entitle-agent.customCaEnabled" .) }}
         volumeMounts:
+        {{- if not .Values.datadog.enabled }}
           - mountPath: /var/log/entitle-agent
             name: entitle-agent-logs
+        {{- end }}
+        {{- if include "entitle-agent.customCaEnabled" . }}
+          - name: custom-ca
+            mountPath: {{ include "entitle-agent.customCaMountPath" . }}
+            readOnly: true
+        {{- end }}
         {{- end }}
       containers:
       - name: {{ include "entitle-agent.fullname" . }}
@@ -110,10 +118,17 @@ spec:
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        {{- if not .Values.datadog.enabled }}
+        {{- if or (not .Values.datadog.enabled) (include "entitle-agent.customCaEnabled" .) }}
         volumeMounts:
+        {{- if not .Values.datadog.enabled }}
           - mountPath: /var/log/entitle-agent
             name: entitle-agent-logs
+        {{- end }}
+        {{- if include "entitle-agent.customCaEnabled" . }}
+          - name: custom-ca
+            mountPath: {{ include "entitle-agent.customCaMountPath" . }}
+            readOnly: true
+        {{- end }}
         {{- end }}
         livenessProbe:
           exec:
@@ -151,5 +166,15 @@ spec:
         - name: datadog-configmap
           configMap:
             name: {{ include "entitle-agent.fullname" . }}-datadog-config
+        {{- end }}
+        {{- if include "entitle-agent.customCaEnabled" . }}
+        - name: custom-ca
+          {{- if include "entitle-agent.customCaSecretNameValue" . }}
+          secret:
+            secretName: {{ include "entitle-agent.customCaSecretNameValue" . }}
+          {{- else }}
+          configMap:
+            name: {{ include "entitle-agent.customCaConfigMapNameValue" . }}
+          {{- end }}
         {{- end }}
       serviceAccountName: {{ include "entitle-agent.serviceAccountName" .}}
