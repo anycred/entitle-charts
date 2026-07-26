@@ -42,6 +42,13 @@ icon: https://app.entitle.io/favicon.ico
 # v2.10.3: Same fix for the platform.gcp side - the oldest versions (v1.0.x) had no
 # platform.gcp block and defaulted platform.mode to "gcp" for every install, so
 # --reuse-values upgrades from v1.0.x nil-panicked on .Values.platform.gcp.serviceAccount.
+# v2.10.4 (DOPS-963): fix routing v1 image rewrite with agent.secretRef. Previously,
+# the secretRef path could not rewrite the Deployment image to the proxy host because
+# the token was opaque at render time. Now a post-install/upgrade hook extracts
+# routing + platform fields from the secretRef token and patches the Deployment to
+# use agent.{platform}.entitle.io when routing=v1. The hook also re-keys the pull
+# secret to the proxy host. Only runs when using the default agent.image.repository
+# (custom repos bypass the rewrite to allow direct pulls from private mirrors).
 # v2.11.0 (ICH-5042): customCa.* values mount a combined CA bundle from a Secret/ConfigMap
 # and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
 version: 2.11.0
