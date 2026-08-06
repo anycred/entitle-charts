@@ -178,3 +178,5 @@ spec:
           {{- end }}
         {{- end }}
       serviceAccountName: {{ include "entitle-agent.serviceAccountName" .}}
+      # Set at pod level because it overrides the ServiceAccount setting, which a cluster policy may have forced to false.
+      automountServiceAccountToken: true
