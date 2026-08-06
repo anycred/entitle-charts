@@ -27,6 +27,7 @@ spec:
         {{- include "entitle-agent.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "entitle-agent.fullname" . }}-hook
+      automountServiceAccountToken: true
       restartPolicy: Never
       containers:
       - name: extract

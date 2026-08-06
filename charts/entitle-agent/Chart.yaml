@@ -51,10 +51,12 @@ icon: https://app.entitle.io/favicon.ico
 # (custom repos bypass the rewrite to allow direct pulls from private mirrors).
 # v2.11.0 (ICH-5042): customCa.* values mount a combined CA bundle from a Secret/ConfigMap
 # and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
-# v2.11.1 (ICH-5194): explicitly set automountServiceAccountToken=true on the ServiceAccount
-# and the agent pod spec. Clusters that default it to false (or a policy that flips the
-# ServiceAccount) left the pod without /var/run/secrets/kubernetes.io/serviceaccount, so the
-# ServiceAccountBinding and KMS validators died with FileNotFoundError and the agent never started.
+# v2.11.1 (ICH-5194): explicitly set automountServiceAccountToken=true on the ServiceAccount,
+# the agent pod spec, and the hook ServiceAccount/Jobs. Clusters that default it to false (or a
+# policy that flips the ServiceAccount) left the pod without /var/run/secrets/kubernetes.io/serviceaccount,
+# so the ServiceAccountBinding and KMS validators died with FileNotFoundError and the agent never
+# started; the hook jobs read the same path, so helm install itself failed there too.
+# No-op wherever the field was previously unset, which is the default everywhere.
 version: 2.11.1
 appVersion: "1.0.0"
 
