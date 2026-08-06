@@ -57,6 +57,10 @@ icon: https://app.entitle.io/favicon.ico
 # so the ServiceAccountBinding and KMS validators died with FileNotFoundError and the agent never
 # started; the hook jobs read the same path, so helm install itself failed there too.
 # No-op wherever the field was previously unset, which is the default everywhere.
+# v2.11.1 (ICH-5194) also adds a startupProbe and raises the liveness failureThreshold from 1 to 3.
+# liveness_check.py exits 1 (FileNotFoundError on /tmp/ichilov_status) until the first Runner is
+# constructed, and boot can exceed 80s behind a routing-v1 proxy. With initialDelaySeconds=20 and
+# failureThreshold=1 the kubelet SIGKILLed the agent before it ever finished starting, forever.
 version: 2.11.1
 appVersion: "1.0.0"
 

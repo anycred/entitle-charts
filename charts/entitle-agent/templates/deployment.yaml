@@ -130,12 +130,27 @@ spec:
             readOnly: true
         {{- end }}
         {{- end }}
+        # Gates the liveness probe until the agent has booted. liveness_check.py exits 1 while
+        # /tmp/ichilov_status is still absent, and boot can exceed 80s behind a routing-v1 proxy,
+        # so without this the liveness probe kills the agent before it ever finishes starting.
+        # Budget: 30 x 10s = 5 minutes.
+        startupProbe:
+          exec:
+            command:
+              - python
+              - /src/liveness_check/liveness_check.py
+          failureThreshold: 30
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 10
         livenessProbe:
           exec:
             command:
               - python
               - /src/liveness_check/liveness_check.py
-          failureThreshold: 1
+          # 3, not 1: a single transient probe failure should not restart a healthy agent.
+          failureThreshold: 3
           initialDelaySeconds: 20
           periodSeconds: 60
           successThreshold: 1
