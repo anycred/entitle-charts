@@ -396,6 +396,12 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
 {{- end -}}
 
+{{/* Extracts "proxyToken" field from token. Empty for tokens issued before the
+     Envoy proxy gained authentication — every consumer must stay backward compatible. */}}
+{{- define "entitle-agent.extractedProxyToken" -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "proxyToken") -}}
+{{- end -}}
+
 {{/* Generates proxy URL from platform value
      Standard: http://agent.{platform}.entitle.io:8080
      Dev:      http://agent-{num}.dev.entitle.io:8080 (for dev-one, dev-two, dev-three)
@@ -409,6 +415,54 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
     {{- else -}}
       {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
     {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Proxy host with no scheme or port — agent.{platform}.entitle.io.
+     Derived from entitle-agent.proxyUrl so the hostname has a single source. */}}
+{{- define "entitle-agent.proxyHost" -}}
+  {{- include "entitle-agent.proxyUrl" . | trimPrefix "http://" | trimPrefix "https://" | trimSuffix ":8080" -}}
+{{- end -}}
+
+{{/* Authenticated proxy URL:
+       https://proxy-auth:<token>@agent.{platform}.entitle.io      (implicit :443)
+
+     https and :443, not http and :8080 — both parts matter:
+
+     * Envoy only authenticates on the :443 listener. :8080 has no ext_authz filter and
+       no Lua authorization, so a credential sent there is accepted and ignored.
+     * The NLB terminates TLS on :443 with an ACM cert, so the token is encrypted in
+       transit. Basic auth over cleartext :8080 would expose it on the wire.
+
+     "proxy-auth" is not a real user — it is a fixed marker telling the Envoy auth
+     service that the password field holds a proxy token. Embedding the credential in
+     the URL is the only way to authenticate clients that accept nothing but a proxy
+     URL (the Datadog agent is a Go binary; we cannot make it set a custom header).
+     The HTTP library then builds `Proxy-Authorization: Basic base64("proxy-auth:<token>")`
+     itself, and Envoy authorises the CONNECT against the auth service.
+
+     The token is a base64 string, so it can contain "+", "/" and "=". Of these "/" is
+     NOT legal in the userinfo component (RFC 3986 §3.2.1:
+     https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1) and would silently
+     split the URL into a bogus host plus a path. urlquery percent-encodes all three.
+
+     IMPORTANT: this is deliberately NOT folded into entitle-agent.proxyUrl. That helper
+     is also the source of the proxy *host* for entitle-agent.datadogImage,
+     entitle-agent.agentImageRepository and entitle-agent.dockerConfigJson, all of which
+     strip the scheme and would end up with "proxy-auth:<token>@host" inside an image
+     reference or as a dockerconfigjson auths key. Only use this helper where a real
+     proxy URL is consumed.
+
+     Falls back to the credential-free entitle-agent.proxyUrl (:8080) when the token
+     carries no proxyToken, so agents issued before proxy authentication existed keep
+     working unchanged. */}}
+{{- define "entitle-agent.proxyUrlWithCredentials" -}}
+  {{- $proxyHost := include "entitle-agent.proxyHost" . -}}
+  {{- $proxyToken := include "entitle-agent.extractedProxyToken" . | trim -}}
+  {{- if and $proxyHost $proxyToken -}}
+    {{- printf "https://proxy-auth:%s@%s" (urlquery $proxyToken) $proxyHost -}}
+  {{- else -}}
+    {{- include "entitle-agent.proxyUrl" . -}}
   {{- end -}}
 {{- end -}}
 

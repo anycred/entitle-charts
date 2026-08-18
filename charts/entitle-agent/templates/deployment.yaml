@@ -50,7 +50,7 @@ spec:
         imagePullPolicy: Always
         restartPolicy: Always
         envFrom:
-          - configMapRef:
+          - secretRef:
               name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
               optional: true
         env:

@@ -208,22 +208,23 @@ datadog:
         no_proxy:
           - "kubernetes.default.svc"
 
-  # Proxy env vars from ConfigMap (created by parent chart when routing=v1)
-  # All proxy URLs are dynamically generated from token platform: http://agent.{platform}.entitle.io:8080
+  # Proxy env vars from Secret (created by parent chart when routing=v1).
+  # A Secret rather than a ConfigMap because the URL carries the proxy token as
+  # basic-auth credentials: http://proxy-auth:{proxyToken}@agent.{platform}.entitle.io:8080
   agents:
     containers:
       agent:
         envFrom:
-          - configMapRef:
+          - secretRef:
               name: entitle-agent-datadog-proxy
-              optional: true  # ConfigMap only created when proxy is enabled
+              optional: true  # Secret only created when proxy is enabled
       processAgent:
         envFrom:
-          - configMapRef:
+          - secretRef:
               name: entitle-agent-datadog-proxy
               optional: true
       traceAgent:
         envFrom:
-          - configMapRef:
+          - secretRef:
               name: entitle-agent-datadog-proxy
               optional: true
