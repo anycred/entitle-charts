@@ -142,6 +142,24 @@ datadog:
   enabled: false           # false = sidecar (see sidecarLogs); true = full Datadog subchart DaemonSet
   sidecarLogs: true        # Datadog sidecar container for log shipping (used when datadog.enabled=false)
 
+  # -- proxyMode: how the Datadog agent reaches Datadog through the Entitle proxy.
+  # "reverse" only takes effect on tokens with routing v2 AND a proxyToken; v0 and v1
+  # tokens keep their existing behaviour regardless of this setting, so a customer on an
+  # older token is never switched into a mode the proxy may not be configured for.
+  #
+  #   connect  (default) DD_PROXY_HTTP/HTTPS point at the proxy. Destinations stay
+  #            https://, so each becomes a CONNECT tunnel: Envoy authenticates the tunnel
+  #            but cannot see inside it, so the Datadog API key must stay in this cluster.
+  #
+  #   reverse  DD_*_URL point at the proxy, which acts as Datadog's origin server (the
+  #            same pattern the container registry uses). Requests are readable, so Envoy
+  #            swaps the proxy token for the real API key — this cluster never holds a
+  #            Datadog key, and DD_API_KEY carries the proxy token instead.
+  #            Requires datadogIntake.enabled on the envoy-proxy side, and switches logs
+  #            to HTTP transport. Envoy terminates TLS, so telemetry is decrypted inside
+  #            Entitle's cluster before being re-encrypted to Datadog.
+  proxyMode: connect
+
   # Datadog logs sidecar image. Override `repository` to mirror into a private
   # registry (e.g. myreg.example.com/mirrors/datadog-agent).
   # When routing v1 is active and using the default repository, the image is

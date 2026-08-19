@@ -311,9 +311,25 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves datadogApiKey: explicit value > extract from agent.token */}}
+{{/* Resolves datadogApiKey: reverse mode > explicit value > extract from agent.token
+
+     With datadog.proxyMode=reverse AND routing v2 the agent must present the PROXY token,
+     not a Datadog key: the proxy is the origin server, it validates this value as a proxy
+     token and swaps it for the real Datadog key on the way out. A real Datadog key here
+     would fail that validation and be rejected with 403, so this takes precedence over an
+     explicit apiKey — otherwise `--set datadog.datadog.apiKey=...` would silently break
+     the mode.
+
+     The routing v2 requirement keeps v0/v1 tokens on their existing behaviour, so a
+     customer on an older token cannot be switched into a mode the proxy may not support.
+
+     The point of reverse mode is that the customer's cluster never holds a Datadog key. */}}
 {{- define "entitle-agent.datadogApiKey" -}}
-  {{- if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
+  {{- $proxyToken := include "entitle-agent.extractedProxyToken" . | trim -}}
+  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- if and (eq (.Values.datadog.proxyMode | default "connect") "reverse") (eq $routing "v2") $proxyToken -}}
+    {{- $proxyToken -}}
+  {{- else if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
     {{- .Values.datadog.datadog.apiKey -}}
   {{- else -}}
     {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "datadogApiKey") -}}
