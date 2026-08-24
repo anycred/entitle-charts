@@ -143,10 +143,12 @@ datadog:
   sidecarLogs: true        # Datadog sidecar container for log shipping (used when datadog.enabled=false)
 
   # -- proxyMode: how the Datadog agent reaches Datadog through the proxy.
-  #    connect  (default) DD_PROXY_HTTP/HTTPS; the Datadog API key stays in this cluster.
-  #    reverse  DD_*_URL point at the proxy, which supplies the API key. Needs routing v2,
-  #             a proxyToken, and datadogIntake.enabled on the envoy-proxy side.
-  proxyMode: connect
+  #    ""       (default) follow the token: routing v2 with a client secret uses reverse,
+  #             anything older uses connect.
+  #    connect  force DD_PROXY_HTTP/HTTPS; the Datadog API key stays in this cluster.
+  #    reverse  DD_*_URL point at the proxy, which supplies the API key. Requires
+  #             datadogIntake.enabled on the envoy-proxy side, else telemetry 404s.
+  proxyMode: ""
 
   # Datadog logs sidecar image. Override `repository` to mirror into a private
   # registry (e.g. myreg.example.com/mirrors/datadog-agent).
@@ -216,7 +218,7 @@ datadog:
 
   # Proxy env vars from Secret (created by parent chart when routing=v1).
   # A Secret rather than a ConfigMap because the URL carries the proxy token as
-  # basic-auth credentials: http://proxy-auth:{proxyToken}@agent.{platform}.entitle.io:8080
+  # basic-auth credentials: http://proxy-auth:{clientSecret}@agent.{platform}.entitle.io:8080
   agents:
     containers:
       agent:

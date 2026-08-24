@@ -311,12 +311,37 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves datadogApiKey: proxyMode=reverse (routing v2) > explicit value > extract from agent.token */}}
-{{- define "entitle-agent.datadogApiKey" -}}
-  {{- $proxyToken := include "entitle-agent.extractedProxyToken" . | trim -}}
+{{/*
+Safe accessor for datadog.proxyMode — returns "" when the block is absent
+(introduced in v2.12.0; missing on --reuse-values upgrades from older releases).
+Use this instead of direct .Values.datadog.proxyMode access.
+*/}}
+{{- define "entitle-agent.datadogProxyModeValue" -}}
+{{- if hasKey .Values.datadog "proxyMode" -}}
+{{- .Values.datadog.proxyMode | default "" -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Non-empty when the Datadog agent should talk to the proxy as an origin server.
+     Routing v2 with a client secret implies it; proxyMode=connect forces the old path.
+     Single source of truth — datadog-proxy-secret.yaml must agree with datadogApiKey,
+     or the agent gets reverse URLs while still holding the real Datadog key. */}}
+{{- define "entitle-agent.datadogReverseMode" -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
-  {{- if and (eq (.Values.datadog.proxyMode | default "connect") "reverse") (eq $routing "v2") $proxyToken -}}
-    {{- $proxyToken -}}
+  {{- $proxyMode := include "entitle-agent.datadogProxyModeValue" . -}}
+  {{- if and (eq $routing "v2") $clientSecret (ne $proxyMode "connect") -}}
+    {{- "true" -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Resolves datadogApiKey: reverse mode sends the client secret > explicit value > agent.token */}}
+{{- define "entitle-agent.datadogApiKey" -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
+  {{- if include "entitle-agent.datadogReverseMode" . -}}
+    {{- $clientSecret -}}
   {{- else if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
     {{- .Values.datadog.datadog.apiKey -}}
   {{- else -}}
@@ -400,9 +425,17 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
 {{- end -}}
 
-{{/* Extracts "proxyToken" field from token */}}
-{{- define "entitle-agent.extractedProxyToken" -}}
-  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "proxyToken") -}}
+{{/* Extracts the proxy client secret from the token.
+     Reads "clientSecret", falling back to the earlier "proxyToken" name so blobs
+     issued before the rename keep working. Drop the fallback once no such token
+     is in circulation. */}}
+{{- define "entitle-agent.extractedClientSecret" -}}
+  {{- $clientSecret := include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
+  {{- if $clientSecret -}}
+    {{- $clientSecret -}}
+  {{- else -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "proxyToken") -}}
+  {{- end -}}
 {{- end -}}
 
 {{/* Generates proxy URL from platform value
@@ -429,12 +462,12 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{/* Proxy URL with the proxy token as basic-auth credentials, over https/:443.
      Kept separate from entitle-agent.proxyUrl on purpose: that one is also the host
      source for the image helpers, which strip the scheme.
-     Empty when the token has no proxyToken; callers fall back to proxyUrl. */}}
+     Empty when the token has no client secret; callers fall back to proxyUrl. */}}
 {{- define "entitle-agent.proxyUrlWithCredentials" -}}
   {{- $proxyHost := include "entitle-agent.proxyHost" . -}}
-  {{- $proxyToken := include "entitle-agent.extractedProxyToken" . | trim -}}
-  {{- if and $proxyHost $proxyToken -}}
-    {{- printf "https://proxy-auth:%s@%s" (urlquery $proxyToken) $proxyHost -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
+  {{- if and $proxyHost $clientSecret -}}
+    {{- printf "https://proxy-auth:%s@%s" (urlquery $clientSecret) $proxyHost -}}
   {{- else -}}
     {{- include "entitle-agent.proxyUrl" . -}}
   {{- end -}}
