@@ -50,8 +50,8 @@ spec:
         imagePullPolicy: Always
         restartPolicy: Always
         envFrom:
-          - configMapRef:
-              name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
+          - secretRef:
+              name: {{ include "entitle-agent.fullname" . }}-datadog-routing
               optional: true
         env:
           - name: DD_API_KEY

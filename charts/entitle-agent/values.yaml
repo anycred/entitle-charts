@@ -142,6 +142,14 @@ datadog:
   enabled: false           # false = sidecar (see sidecarLogs); true = full Datadog subchart DaemonSet
   sidecarLogs: true        # Datadog sidecar container for log shipping (used when datadog.enabled=false)
 
+  # -- routingMode: how the Datadog agent reaches Datadog through the proxy.
+  #    ""       (default) follow the token: routing v2 with a client secret uses reverse,
+  #             anything older uses connect.
+  #    connect  force DD_PROXY_HTTP/HTTPS; the Datadog API key stays in this cluster.
+  #    reverse  DD_*_URL point at the proxy, which supplies the API key. Requires
+  #             datadogIntake.enabled on the envoy-proxy side, else telemetry 404s.
+  routingMode: ""
+
   # Datadog logs sidecar image. Override `repository` to mirror into a private
   # registry (e.g. myreg.example.com/mirrors/datadog-agent).
   # When routing v1 is active and using the default repository, the image is
@@ -208,22 +216,23 @@ datadog:
         no_proxy:
           - "kubernetes.default.svc"
 
-  # Proxy env vars from ConfigMap (created by parent chart when routing=v1)
-  # All proxy URLs are dynamically generated from token platform: http://agent.{platform}.entitle.io:8080
+  # Proxy env vars from Secret (created by parent chart when routing=v1).
+  # A Secret rather than a ConfigMap because the URL carries the proxy token as
+  # basic-auth credentials: http://proxy-auth:{clientSecret}@agent.{platform}.entitle.io:8080
   agents:
     containers:
       agent:
         envFrom:
-          - configMapRef:
-              name: entitle-agent-datadog-proxy
-              optional: true  # ConfigMap only created when proxy is enabled
+          - secretRef:
+              name: entitle-agent-datadog-routing
+              optional: true  # Secret only created when proxy is enabled
       processAgent:
         envFrom:
-          - configMapRef:
-              name: entitle-agent-datadog-proxy
+          - secretRef:
+              name: entitle-agent-datadog-routing
               optional: true
       traceAgent:
         envFrom:
-          - configMapRef:
-              name: entitle-agent-datadog-proxy
+          - secretRef:
+              name: entitle-agent-datadog-routing
               optional: true
