@@ -56,7 +56,7 @@ icon: https://app.entitle.io/favicon.ico
 # move from a ConfigMap to a Secret of the same name, the URL now being a live credential.
 # A routing-v2 token additionally points DD_*_URL at the proxy and sends the clientSecret
 # in place of the Datadog API key, so the real key never reaches the cluster. This requires
-# datadogIntake enabled on the proxy side; datadog.proxyMode=connect opts back out.
+# datadogIntake enabled on the proxy side; datadog.routingMode=connect opts back out.
 # v0/v1 tokens render byte-identically to v2.11.0. The token field was briefly named
 # proxyToken before clientSecret — both names are read, preferring clientSecret.
 version: 2.12.0

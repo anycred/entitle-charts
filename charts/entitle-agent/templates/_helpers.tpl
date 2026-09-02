@@ -312,27 +312,27 @@ Fullname with image tag
 {{- end -}}
 
 {{/*
-Safe accessor for datadog.proxyMode — returns "" when the block is absent
+Safe accessor for datadog.routingMode — returns "" when the key is absent
 (introduced in v2.12.0; missing on --reuse-values upgrades from older releases).
-Use this instead of direct .Values.datadog.proxyMode access.
+Use this instead of direct .Values.datadog.routingMode access.
 */}}
-{{- define "entitle-agent.datadogProxyModeValue" -}}
-{{- if hasKey .Values.datadog "proxyMode" -}}
-{{- .Values.datadog.proxyMode | default "" -}}
+{{- define "entitle-agent.datadogRoutingModeValue" -}}
+{{- if hasKey .Values.datadog "routingMode" -}}
+{{- .Values.datadog.routingMode | default "" -}}
 {{- else -}}
 {{- "" -}}
 {{- end -}}
 {{- end -}}
 
 {{/* Non-empty when the Datadog agent should talk to the proxy as an origin server.
-     Routing v2 with a client secret implies it; proxyMode=connect forces the old path.
+     Routing v2 with a client secret implies it; routingMode=connect forces the old path.
      Single source of truth — datadog-proxy-secret.yaml must agree with datadogApiKey,
      or the agent gets reverse URLs while still holding the real Datadog key. */}}
 {{- define "entitle-agent.datadogReverseMode" -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
-  {{- $proxyMode := include "entitle-agent.datadogProxyModeValue" . -}}
-  {{- if and (eq $routing "v2") $clientSecret (ne $proxyMode "connect") -}}
+  {{- $routingMode := include "entitle-agent.datadogRoutingModeValue" . -}}
+  {{- if and (eq $routing "v2") $clientSecret (ne $routingMode "connect") -}}
     {{- "true" -}}
   {{- end -}}
 {{- end -}}
@@ -454,20 +454,20 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- end -}}
 {{- end -}}
 
-{{/* Proxy host with no scheme or port — agent.{platform}.entitle.io */}}
-{{- define "entitle-agent.proxyHost" -}}
+{{/* entitle-agent.proxyUrl with no scheme or port — agent.{platform}.entitle.io */}}
+{{- define "entitle-agent.entitleHost" -}}
   {{- include "entitle-agent.proxyUrl" . | trimPrefix "http://" | trimPrefix "https://" | trimSuffix ":8080" -}}
 {{- end -}}
 
-{{/* Proxy URL with the proxy token as basic-auth credentials, over https/:443.
+{{/* entitle-agent.proxyUrl with the client secret as basic-auth credentials, over https/:443.
      Kept separate from entitle-agent.proxyUrl on purpose: that one is also the host
      source for the image helpers, which strip the scheme.
      Empty when the token has no client secret; callers fall back to proxyUrl. */}}
-{{- define "entitle-agent.proxyUrlWithCredentials" -}}
-  {{- $proxyHost := include "entitle-agent.proxyHost" . -}}
+{{- define "entitle-agent.entitleUrlWithCredentials" -}}
+  {{- $entitleHost := include "entitle-agent.entitleHost" . -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
-  {{- if and $proxyHost $clientSecret -}}
-    {{- printf "https://proxy-auth:%s@%s" (urlquery $clientSecret) $proxyHost -}}
+  {{- if and $entitleHost $clientSecret -}}
+    {{- printf "https://proxy-auth:%s@%s" (urlquery $clientSecret) $entitleHost -}}
   {{- else -}}
     {{- include "entitle-agent.proxyUrl" . -}}
   {{- end -}}
@@ -477,7 +477,7 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      Selected by the token's "routing" field:
        v0 / field absent  -> `datadog.image.repository`:`datadog.image.tag` as-is
        v1 (or higher)     -> pull through the proxy ONLY if using the default repository.
-                             Rewrite to `<proxyHost>/monitoring-agent/<basename>:<tag>` where
+                             Rewrite to `<entitleHost>/monitoring-agent/<basename>:<tag>` where
                              basename is the last "/"-separated segment of the
                              configured repository. Uses the same proxy host as
                              the agent image (agent.{platform}.entitle.io, from
