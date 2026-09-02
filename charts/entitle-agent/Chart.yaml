@@ -53,12 +53,12 @@ icon: https://app.entitle.io/favicon.ico
 # and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
 # v2.12.0 (ICH-5410): the Datadog agent's proxy URL carries the token's clientSecret as
 # basic-auth credentials over https/:443, so Envoy can authenticate it. DD_PROXY_HTTP/HTTPS
-# move from a ConfigMap to a Secret of the same name, the URL now being a live credential.
+# move from a ConfigMap to a Secret, renamed to -datadog-routing, the URL now being a
+# live credential.
 # A routing-v2 token additionally points DD_*_URL at the proxy and sends the clientSecret
 # in place of the Datadog API key, so the real key never reaches the cluster. This requires
 # datadogIntake enabled on the proxy side; datadog.routingMode=connect opts back out.
-# v0/v1 tokens render byte-identically to v2.11.0. The token field was briefly named
-# proxyToken before clientSecret — both names are read, preferring clientSecret.
+# v0/v1 tokens render byte-identically to v2.11.0.
 version: 2.12.0
 appVersion: "1.0.0"
 

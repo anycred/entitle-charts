@@ -51,7 +51,7 @@ spec:
         restartPolicy: Always
         envFrom:
           - secretRef:
-              name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
+              name: {{ include "entitle-agent.fullname" . }}-datadog-routing
               optional: true
         env:
           - name: DD_API_KEY

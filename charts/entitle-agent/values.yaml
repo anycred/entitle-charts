@@ -224,15 +224,15 @@ datadog:
       agent:
         envFrom:
           - secretRef:
-              name: entitle-agent-datadog-proxy
+              name: entitle-agent-datadog-routing
               optional: true  # Secret only created when proxy is enabled
       processAgent:
         envFrom:
           - secretRef:
-              name: entitle-agent-datadog-proxy
+              name: entitle-agent-datadog-routing
               optional: true
       traceAgent:
         envFrom:
           - secretRef:
-              name: entitle-agent-datadog-proxy
+              name: entitle-agent-datadog-routing
               optional: true

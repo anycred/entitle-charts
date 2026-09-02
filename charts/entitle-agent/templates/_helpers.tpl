@@ -326,7 +326,7 @@ Use this instead of direct .Values.datadog.routingMode access.
 
 {{/* Non-empty when the Datadog agent should talk to the proxy as an origin server.
      Routing v2 with a client secret implies it; routingMode=connect forces the old path.
-     Single source of truth — datadog-proxy-secret.yaml must agree with datadogApiKey,
+     Single source of truth — datadog-routing-secret.yaml must agree with datadogApiKey,
      or the agent gets reverse URLs while still holding the real Datadog key. */}}
 {{- define "entitle-agent.datadogReverseMode" -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
@@ -425,17 +425,9 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
 {{- end -}}
 
-{{/* Extracts the proxy client secret from the token.
-     Reads "clientSecret", falling back to the earlier "proxyToken" name so blobs
-     issued before the rename keep working. Drop the fallback once no such token
-     is in circulation. */}}
+{{/* Extracts the client secret from the token. */}}
 {{- define "entitle-agent.extractedClientSecret" -}}
-  {{- $clientSecret := include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
-  {{- if $clientSecret -}}
-    {{- $clientSecret -}}
-  {{- else -}}
-    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "proxyToken") -}}
-  {{- end -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
 {{- end -}}
 
 {{/* Generates proxy URL from platform value
