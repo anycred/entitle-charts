@@ -454,11 +454,14 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{/* entitle-agent.proxyUrl with the client secret as basic-auth credentials, over https/:443.
      Kept separate from entitle-agent.proxyUrl on purpose: that one is also the host
      source for the image helpers, which strip the scheme.
-     Empty when the token has no client secret; callers fall back to proxyUrl. */}}
+     Requires routing v2 as well as a client secret: a v1 token predates the
+     authenticated :443 listener, so credentials there would move it to a scheme
+     and port its proxy does not serve. Falls back to proxyUrl otherwise. */}}
 {{- define "entitle-agent.entitleUrlWithCredentials" -}}
   {{- $entitleHost := include "entitle-agent.entitleHost" . -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
-  {{- if and $entitleHost $clientSecret -}}
+  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- if and $entitleHost $clientSecret (eq $routing "v2") -}}
     {{- printf "https://proxy-auth:%s@%s" (urlquery $clientSecret) $entitleHost -}}
   {{- else -}}
     {{- include "entitle-agent.proxyUrl" . -}}
