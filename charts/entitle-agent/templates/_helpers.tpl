@@ -329,6 +329,21 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
+{{/* Resolves clientSecret: explicit value > extract from agent.token.
+     hasKey guard: agent.clientSecret was introduced after v2.10.x, so it is absent on
+     --reuse-values upgrades from earlier releases. Only v2-routing tokens carry the field. */}}
+{{- define "entitle-agent.clientSecret" -}}
+  {{- $explicit := "" -}}
+  {{- if hasKey .Values.agent "clientSecret" -}}
+    {{- $explicit = .Values.agent.clientSecret | default "" -}}
+  {{- end -}}
+  {{- if $explicit -}}
+    {{- $explicit -}}
+  {{- else -}}
+    {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
+  {{- end -}}
+{{- end -}}
+
 {{/*
 Validates that the credentials needed for a working deployment can be resolved at
 render time, and fails helm install/upgrade with an actionable message if not.
@@ -350,7 +365,7 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
   {{- if not $isRuntimeSecretRef -}}
     {{- if not $imagePullSecretName -}}
-      {{- if not (include "entitle-agent.imageCredentials" . | trim) -}}
+      {{- if not (include "entitle-agent.dockerConfigJson" . | trim) -}}
         {{- fail (include "entitle-agent.missingImageCredentialsMessage" .) -}}
       {{- end -}}
     {{- end -}}
@@ -410,6 +425,12 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
       {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
     {{- end -}}
   {{- end -}}
+{{- end -}}
+
+{{/* Proxy host from entitle-agent.proxyUrl, without the scheme or the :8080 port —
+     the form needed for an image reference and for a dockerconfigjson auths key. */}}
+{{- define "entitle-agent.proxyHost" -}}
+  {{- include "entitle-agent.proxyUrl" . | trimPrefix "http://" | trimSuffix ":8080" -}}
 {{- end -}}
 
 {{/* Full Datadog logs sidecar image reference including tag.
@@ -473,21 +494,32 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      username/password are unchanged — the proxy forwards the basic-auth /token call to
      the real upstream). Only rewrite if the agent repository is using the default.
      If agent is custom, pass imageCredentials through unchanged to allow direct pulls
-     from private mirrors. */}}
+     from private mirrors.
+
+     Routing v2 with no imageCredentials at all: build the auths entry from the proxy host
+     and agent.clientSecret as Basic base64("proxy-auth:<clientSecret>"). "proxy-auth" is the
+     magic username the proxy's auth sidecar matches on — it validates the secret and swaps
+     the whole credential for the real registry one, so a v2 cluster never holds a ghcr
+     credential. Restricted to v2 because v0/v1 tokens carry no clientSecret and their
+     proxies do not inject. */}}
 {{- define "entitle-agent.dockerConfigJson" -}}
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
+  {{- $host := include "entitle-agent.proxyHost" . -}}
   {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
   {{- $agentIsDefault := eq .Values.agent.image.repository $defaultAgentRepo -}}
+  {{- $clientSecret := include "entitle-agent.clientSecret" . | trim -}}
   {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
-    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}
     {{- $newAuths := dict -}}
     {{- range $k, $v := $decoded.auths -}}
       {{- $_ := set $newAuths $host $v -}}
     {{- end -}}
     {{- dict "auths" $newAuths | toJson | b64enc -}}
+  {{- else if and (not $imageCreds) $clientSecret $routing (ne $routing "v0") (ne $routing "v1") $proxyUrl $agentIsDefault -}}
+    {{- $auth := printf "proxy-auth:%s" $clientSecret | b64enc -}}
+    {{- dict "auths" (dict $host (dict "auth" $auth)) | toJson | b64enc -}}
   {{- else -}}
     {{- $imageCreds -}}
   {{- end -}}
