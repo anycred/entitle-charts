@@ -501,11 +501,9 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
-  {{- $isDefault := include "entitle-agent.agentRepoIsEntitleOwned" . -}}
-  {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
-    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+  {{- if and $routing (ne $routing "v0") $proxyUrl (include "entitle-agent.agentRepoIsEntitleOwned" .) -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
-    {{- printf "%s/%s" $host $path -}}
+    {{- printf "%s/%s" (include "entitle-agent.proxyHost" .) $path -}}
   {{- else -}}
     {{- $repository -}}
   {{- end -}}
@@ -528,18 +526,17 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $host := include "entitle-agent.proxyHost" . -}}
-  {{- $agentIsDefault := include "entitle-agent.agentRepoIsEntitleOwned" . -}}
   {{- $clientSecret := include "entitle-agent.clientSecret" . | trim -}}
-  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
+  {{- $viaProxy := and $routing (ne $routing "v0") $proxyUrl (include "entitle-agent.agentRepoIsEntitleOwned" .) -}}
+  {{- if and $viaProxy $imageCreds -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}
     {{- $newAuths := dict -}}
     {{- range $k, $v := $decoded.auths -}}
       {{- $_ := set $newAuths $host $v -}}
     {{- end -}}
     {{- dict "auths" $newAuths | toJson | b64enc -}}
-  {{- else if and (not $imageCreds) $clientSecret $routing (ne $routing "v0") (ne $routing "v1") $proxyUrl $agentIsDefault -}}
-    {{- $auth := printf "proxy-auth:%s" $clientSecret | b64enc -}}
-    {{- dict "auths" (dict $host (dict "auth" $auth)) | toJson | b64enc -}}
+  {{- else if and $viaProxy $clientSecret (ne $routing "v1") -}}
+    {{- dict "auths" (dict $host (dict "auth" (printf "proxy-auth:%s" $clientSecret | b64enc))) | toJson | b64enc -}}
   {{- else -}}
     {{- $imageCreds -}}
   {{- end -}}
