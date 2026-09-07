@@ -140,10 +140,10 @@ spec:
           periodSeconds: 60
           successThreshold: 1
           timeoutSeconds: 10
-      {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
+      {{- $dockerConfig := include "entitle-agent.dockerConfigJson" . -}}
       {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
       {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
-      {{- if or $imagePullSecretName $imageCreds $secretRefName }}
+      {{- if or $imagePullSecretName $dockerConfig $secretRefName }}
       imagePullSecrets:
         - name: {{ include "entitle-agent.imagePullSecretName" . }}
       {{- end }}

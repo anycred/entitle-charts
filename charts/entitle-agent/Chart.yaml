@@ -55,6 +55,10 @@ icon: https://app.entitle.io/favicon.ico
 # carries no imageCredentials, the pull secret is built from the proxy host and
 # agent.clientSecret as Basic base64("proxy-auth:<clientSecret>") — the proxy validates it
 # and swaps in the real registry credential, so a v2 cluster never holds a ghcr credential.
+# Also in v2.12.0: reference the chart-built pull secret whenever there is one (the
+# imagePullSecrets block was gated on imageCredentials, so the clientSecret path created the
+# Secret but never used it); build it from clientSecret on the agent.secretRef runtime path
+# too; and fail the install on a routing-v2 token that carries no clientSecret.
 version: 2.12.0
 appVersion: "1.0.0"
 

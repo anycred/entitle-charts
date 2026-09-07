@@ -364,6 +364,15 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
   {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
   {{- if not $isRuntimeSecretRef -}}
+    {{- /* A v2 agent authenticates to the Entitle proxy with the client secret, and
+           utils/dynaconf_custom_loader.py reads base64_config['clientSecret'] unguarded on
+           routing v2 — so without it the agent raises on settings load whatever the image
+           credentials look like. Checked before the pull secret for that reason. */ -}}
+    {{- if eq (include "entitle-agent.extractedRouting" . | trim) "v2" -}}
+      {{- if not (include "entitle-agent.clientSecret" . | trim) -}}
+        {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
+      {{- end -}}
+    {{- end -}}
     {{- if not $imagePullSecretName -}}
       {{- if not (include "entitle-agent.dockerConfigJson" . | trim) -}}
         {{- fail (include "entitle-agent.missingImageCredentialsMessage" .) -}}
@@ -375,6 +384,17 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
       {{- end -}}
     {{- end -}}
   {{- end -}}
+{{- end -}}
+
+{{/* Failure message for a routing-v2 token with no resolvable clientSecret. */}}
+{{- define "entitle-agent.missingClientSecretMessage" -}}
+entitle-agent: invalid installation - this is not a valid routing v2 token.
+Your token blob has routing 'v2' but no 'clientSecret' field, and no override was provided. A v2 token always carries one: the agent authenticates to the Entitle proxy with it, so without it the agent fails on startup and its image cannot be pulled either (ImagePullBackOff).
+Provide it in one of these ways:
+  1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
+  2. Pass the client secret explicitly: --set agent.clientSecret=<client-secret>
+Upgrading an existing release? Add --reuse-values to keep the values from your previous install.
+Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
 {{/* Failure message for an unresolvable imageCredentials. */}}
