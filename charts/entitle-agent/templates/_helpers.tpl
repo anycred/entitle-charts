@@ -15,6 +15,17 @@ ghcr.io/anycred/entitle-agent
 gcr.io/datadoghq/agent
 {{- end -}}
 
+{{/* "true" when agent.image.repository is an Entitle-owned repository, i.e. the chart default
+     or a variant of it (entitle-agent-qa, entitle-agent-development). Prefix, not equality:
+     those variants live in the same ghcr namespace and the proxy serves them under the same
+     pathPrefix /v2/anycred/ + tokenScope anycred, so they must get the host rewrite and the
+     pull-secret handling too. A private mirror does not match and is passed through as-is. */}}
+{{- define "entitle-agent.agentRepoIsEntitleOwned" -}}
+  {{- if hasPrefix (include "entitle-agent.defaultAgentRepository" .) .Values.agent.image.repository -}}
+    {{- "true" -}}
+  {{- end -}}
+{{- end -}}
+
 {{/*
 =============================================================================
 Safe accessors for fields introduced in v2.0.0 — prevents nil pointer errors
@@ -496,8 +507,7 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
-  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
-  {{- $isDefault := eq $repository $defaultAgentRepo -}}
+  {{- $isDefault := include "entitle-agent.agentRepoIsEntitleOwned" . -}}
   {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
@@ -527,8 +537,7 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $host := include "entitle-agent.proxyHost" . -}}
-  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
-  {{- $agentIsDefault := eq .Values.agent.image.repository $defaultAgentRepo -}}
+  {{- $agentIsDefault := include "entitle-agent.agentRepoIsEntitleOwned" . -}}
   {{- $clientSecret := include "entitle-agent.clientSecret" . | trim -}}
   {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}

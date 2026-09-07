@@ -59,6 +59,10 @@ icon: https://app.entitle.io/favicon.ico
 # imagePullSecrets block was gated on imageCredentials, so the clientSecret path created the
 # Secret but never used it); build it from clientSecret on the agent.secretRef runtime path
 # too; and fail the install on a routing-v2 token that carries no clientSecret.
+# Also in v2.12.0: treat any Entitle-owned agent repository (the default plus the
+# entitle-agent-qa / entitle-agent-development variants, matched by prefix) as eligible for the
+# proxy host rewrite and pull-secret handling, and derive the secretRef hook's proxy image from
+# the configured repository rather than the chart default.
 version: 2.12.0
 appVersion: "1.0.0"
 

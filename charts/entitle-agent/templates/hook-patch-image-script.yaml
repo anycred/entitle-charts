@@ -2,7 +2,7 @@
 {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
 {{- $defaultRepo := include "entitle-agent.defaultAgentRepository" . -}}
 {{- $configuredRepo := .Values.agent.image.repository -}}
-{{- $isDefaultRepo := eq $configuredRepo $defaultRepo -}}
+{{- $isDefaultRepo := include "entitle-agent.agentRepoIsEntitleOwned" . -}}
 {{- if and $secretRefName (not $hasToken) $isDefaultRepo }}
 apiVersion: v1
 kind: ConfigMap
@@ -21,7 +21,7 @@ data:
 
     NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
     DEPLOYMENT_NAME="{{ include "entitle-agent.fullname" . }}"
-    DEFAULT_REPO="{{ $defaultRepo }}"
+    CONFIGURED_REPO="{{ $configuredRepo }}"
     SECRET_NAME="{{ $secretRefName }}"
     SECRET_KEY="{{ include "entitle-agent.agentSecretKey" . }}"
 
@@ -66,8 +66,11 @@ data:
         PROXY_HOST="agent.${PLATFORM}.entitle.io"
       fi
 
-      # Extract the repository path from the default repo (after the first /)
-      REPO_PATH=$(echo "$DEFAULT_REPO" | sed 's|^[^/]*/||')
+      # Extract the repository path from the configured repo (after the first /). Must be the
+      # configured one, not the chart default: an Entitle-owned variant (entitle-agent-qa,
+      # entitle-agent-development) also reaches this hook, and taking the default's path would
+      # patch the Deployment to the prod repo while the pull secret authorises the variant.
+      REPO_PATH=$(echo "$CONFIGURED_REPO" | sed 's|^[^/]*/||')
       PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
 
       echo "Patching deployment to use proxy image: $PROXY_IMAGE"
