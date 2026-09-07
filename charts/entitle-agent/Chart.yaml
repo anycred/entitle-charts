@@ -51,18 +51,11 @@ icon: https://app.entitle.io/favicon.ico
 # (custom repos bypass the rewrite to allow direct pulls from private mirrors).
 # v2.11.0 (ICH-5042): customCa.* values mount a combined CA bundle from a Secret/ConfigMap
 # and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
-# v2.12.0 (ICH-5441): routing v2 image pull with the proxy client secret. When a v2 token
-# carries no imageCredentials, the pull secret is built from the proxy host and
-# agent.clientSecret as Basic base64("proxy-auth:<clientSecret>") — the proxy validates it
-# and swaps in the real registry credential, so a v2 cluster never holds a ghcr credential.
-# Also in v2.12.0: reference the chart-built pull secret whenever there is one (the
-# imagePullSecrets block was gated on imageCredentials, so the clientSecret path created the
-# Secret but never used it); build it from clientSecret on the agent.secretRef runtime path
-# too; and fail the install on a routing-v2 token that carries no clientSecret.
-# Also in v2.12.0: treat any Entitle-owned agent repository (the default plus the
-# entitle-agent-qa / entitle-agent-development variants, matched by prefix) as eligible for the
-# proxy host rewrite and pull-secret handling, and derive the secretRef hook's proxy image from
-# the configured repository rather than the chart default.
+# v2.12.0 (ICH-5441): routing v2 pulls with the proxy client secret. A v2 token carries no
+# imageCredentials, so the pull secret is built as base64("proxy-auth:<clientSecret>") keyed to
+# the proxy host, which swaps in the real registry credential — both at render time and in the
+# agent.secretRef hook. Install fails if a v2 token has no clientSecret. The entitle-agent-qa /
+# entitle-agent-development repositories now match by prefix, so they get the same treatment.
 version: 2.12.0
 appVersion: "1.0.0"
 

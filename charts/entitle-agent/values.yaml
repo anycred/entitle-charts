@@ -83,7 +83,7 @@ agent:
   token: "MISSING_CUSTOMER_DATA"
 
   # -- clientSecret: Credential the agent presents to the Entitle proxy (routing v2).
-  # Auto-extracted from agent.token; set it only to override.
+  # Auto-extracted from agent.token; set only to override.
   clientSecret: ""
 
   # -- secretRef: Reference a pre-existing Kubernetes Secret containing the agent

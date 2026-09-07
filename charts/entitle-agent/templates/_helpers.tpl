@@ -15,11 +15,9 @@ ghcr.io/anycred/entitle-agent
 gcr.io/datadoghq/agent
 {{- end -}}
 
-{{/* "true" when agent.image.repository is an Entitle-owned repository, i.e. the chart default
-     or a variant of it (entitle-agent-qa, entitle-agent-development). Prefix, not equality:
-     those variants live in the same ghcr namespace and the proxy serves them under the same
-     pathPrefix /v2/anycred/ + tokenScope anycred, so they must get the host rewrite and the
-     pull-secret handling too. A private mirror does not match and is passed through as-is. */}}
+{{/* "true" for the default agent repository and its variants (entitle-agent-qa,
+     entitle-agent-development). Prefix, not equality: the proxy serves them all under
+     pathPrefix /v2/anycred/, so they get the same host rewrite. A private mirror does not. */}}
 {{- define "entitle-agent.agentRepoIsEntitleOwned" -}}
   {{- if hasPrefix (include "entitle-agent.defaultAgentRepository" .) .Values.agent.image.repository -}}
     {{- "true" -}}
@@ -340,9 +338,8 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves clientSecret: explicit value > extract from agent.token.
-     hasKey guard: agent.clientSecret was introduced after v2.10.x, so it is absent on
-     --reuse-values upgrades from earlier releases. Only v2-routing tokens carry the field. */}}
+{{/* Resolves clientSecret: explicit value > extract from agent.token. Only v2 tokens carry it.
+     hasKey guard: the value is absent on --reuse-values upgrades from before v2.12.0. */}}
 {{- define "entitle-agent.clientSecret" -}}
   {{- $explicit := "" -}}
   {{- if hasKey .Values.agent "clientSecret" -}}
@@ -375,10 +372,8 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
   {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
   {{- if not $isRuntimeSecretRef -}}
-    {{- /* A v2 agent authenticates to the Entitle proxy with the client secret, and
-           utils/dynaconf_custom_loader.py reads base64_config['clientSecret'] unguarded on
-           routing v2 — so without it the agent raises on settings load whatever the image
-           credentials look like. Checked before the pull secret for that reason. */ -}}
+    {{- /* Checked before the pull secret: the agent reads base64_config['clientSecret']
+           unguarded on v2, so without it it raises on settings load regardless. */ -}}
     {{- if eq (include "entitle-agent.extractedRouting" . | trim) "v2" -}}
       {{- if not (include "entitle-agent.clientSecret" . | trim) -}}
         {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
@@ -458,8 +453,7 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- end -}}
 {{- end -}}
 
-{{/* Proxy host from entitle-agent.proxyUrl, without the scheme or the :8080 port —
-     the form needed for an image reference and for a dockerconfigjson auths key. */}}
+{{/* proxyUrl without scheme or port: the form an image ref and an auths key need. */}}
 {{- define "entitle-agent.proxyHost" -}}
   {{- include "entitle-agent.proxyUrl" . | trimPrefix "http://" | trimSuffix ":8080" -}}
 {{- end -}}
@@ -526,12 +520,9 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      If agent is custom, pass imageCredentials through unchanged to allow direct pulls
      from private mirrors.
 
-     Routing v2 with no imageCredentials at all: build the auths entry from the proxy host
-     and agent.clientSecret as Basic base64("proxy-auth:<clientSecret>"). "proxy-auth" is the
-     magic username the proxy's auth sidecar matches on — it validates the secret and swaps
-     the whole credential for the real registry one, so a v2 cluster never holds a ghcr
-     credential. Restricted to v2 because v0/v1 tokens carry no clientSecret and their
-     proxies do not inject. */}}
+     Routing v2 carries no imageCredentials: build the entry as base64("proxy-auth:<clientSecret>")
+     instead. "proxy-auth" is the magic username the proxy's auth sidecar matches on; it validates
+     the secret and swaps in the real registry credential, so the cluster never holds one. */}}
 {{- define "entitle-agent.dockerConfigJson" -}}
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}

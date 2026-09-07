@@ -66,10 +66,9 @@ data:
         PROXY_HOST="agent.${PLATFORM}.entitle.io"
       fi
 
-      # Extract the repository path from the configured repo (after the first /). Must be the
-      # configured one, not the chart default: an Entitle-owned variant (entitle-agent-qa,
-      # entitle-agent-development) also reaches this hook, and taking the default's path would
-      # patch the Deployment to the prod repo while the pull secret authorises the variant.
+      # Repository path (after the first /) of the CONFIGURED repo, not the default: a variant
+      # like entitle-agent-qa also reaches this hook, and the default's path would patch the
+      # Deployment to the prod repo while the pull secret authorises the variant.
       REPO_PATH=$(echo "$CONFIGURED_REPO" | sed 's|^[^/]*/||')
       PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
 
@@ -98,10 +97,9 @@ data:
       IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
       CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
       if [ -z "$IMAGE_CREDS" ] && [ -n "$CLIENT_SECRET" ]; then
-        # Routing v2 token: it carries no imageCredentials at all. Build the pull secret from
-        # the client secret as Basic base64("proxy-auth:<clientSecret>") — "proxy-auth" is the
-        # magic username the proxy's auth sidecar matches on, and it swaps the whole credential
-        # for the real registry one, so the cluster never holds a registry credential.
+        # Routing v2: no imageCredentials, so build the secret as
+        # base64("proxy-auth:<clientSecret>"). The proxy's auth sidecar matches that magic
+        # username and swaps in the real registry credential.
         echo "Building docker-login secret from clientSecret for proxy host: $PROXY_HOST"
 
         PROXY_AUTH=$(printf 'proxy-auth:%s' "$CLIENT_SECRET" | base64 -w0)
