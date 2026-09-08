@@ -311,30 +311,40 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/*
-Safe accessor for datadog.routingMode — returns "" when the key is absent
-(introduced in v2.12.0; missing on --reuse-values upgrades from older releases).
-Use this instead of direct .Values.datadog.routingMode access.
-*/}}
-{{- define "entitle-agent.datadogRoutingModeValue" -}}
-{{- if hasKey .Values.datadog "routingMode" -}}
-{{- .Values.datadog.routingMode | default "" -}}
-{{- else -}}
-{{- "" -}}
-{{- end -}}
-{{- end -}}
-
 {{/* Non-empty when the Datadog agent should talk to the proxy as an origin server.
-     Routing v2 with a client secret implies it; routingMode=connect forces the old path.
+     Routing v2 always does — that is what v2 means. There is no opt-out: the client
+     secret authenticates the agent as the Datadog API key, so a v2 token can only be
+     served this way. Older tokens keep DD_PROXY_HTTP/HTTPS.
      Single source of truth — datadog-routing-secret.yaml must agree with datadogApiKey,
      or the agent gets reverse URLs while still holding the real Datadog key. */}}
 {{- define "entitle-agent.datadogReverseMode" -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
   {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
-  {{- $routingMode := include "entitle-agent.datadogRoutingModeValue" . -}}
-  {{- if and (eq $routing "v2") $clientSecret (ne $routingMode "connect") -}}
+  {{- if and (eq $routing "v2") $clientSecret -}}
     {{- "true" -}}
   {{- end -}}
+{{- end -}}
+
+{{/* Non-empty when a Datadog container that needs the routing vars cannot reach the Secret
+     holding them, which under v2 is their only source. Only the three containers this
+     chart wires are checked; the subchart's others default to an empty envFrom and are
+     not ours to route. Returns the container name. */}}
+{{- define "entitle-agent.unroutableDatadogContainer" -}}
+  {{- $routingSecret := printf "%s-datadog-routing" (include "entitle-agent.fullname" .) -}}
+  {{- $containers := dig "agents" "containers" dict .Values.datadog -}}
+  {{- $offender := "" -}}
+  {{- range $name := list "agent" "processAgent" "traceAgent" -}}
+    {{- $hasSecret := false -}}
+    {{- range (dig $name "envFrom" list $containers) -}}
+      {{- if eq (dig "secretRef" "name" "" .) $routingSecret -}}
+        {{- $hasSecret = true -}}
+      {{- end -}}
+    {{- end -}}
+    {{- if and (not $hasSecret) (not $offender) -}}
+      {{- $offender = $name -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $offender -}}
 {{- end -}}
 
 {{/* Resolves datadogApiKey: reverse mode sends the client secret > explicit value > agent.token */}}
@@ -387,8 +397,36 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
       {{- if not (include "entitle-agent.datadogApiKey" . | trim) -}}
         {{- fail (include "entitle-agent.missingDatadogApiKeyMessage" .) -}}
       {{- end -}}
+      {{- if and (include "entitle-agent.unroutableDatadogContainer" .) (eq (include "entitle-agent.extractedRouting" . | trim) "v2") -}}
+        {{- fail (include "entitle-agent.staleDatadogRoutingRefMessage" .) -}}
+      {{- end -}}
+    {{- end -}}
+    {{- if and (eq (include "entitle-agent.extractedRouting" . | trim) "v2") (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
+      {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
     {{- end -}}
   {{- end -}}
+{{- end -}}
+
+{{/* Failure message when a Datadog container's envFrom cannot reach the routing Secret,
+     which under v2 holds its only DD_*_URL vars. */}}
+{{- define "entitle-agent.staleDatadogRoutingRefMessage" -}}
+entitle-agent: the Datadog container '{{ include "entitle-agent.unroutableDatadogContainer" . }}' cannot reach its Entitle routing settings.
+Your token uses routing v2, which publishes those settings as the Secret {{ include "entitle-agent.fullname" . }}-datadog-routing, but this release's datadog.agents.containers.{{ include "entitle-agent.unroutableDatadogContainer" . }}.envFrom does not reference it. The reference is optional, so the Datadog agent would start with no Entitle routing settings and silently stop reporting.
+The usual cause is `helm upgrade --reuse-values`, which keeps a previous release's values instead of layering in the current chart defaults. Re-run without it:
+  helm upgrade entitle-agent entitle/entitle-agent -n <namespace> --set agent.token=<TOKEN>
+Pass any values you had set explicitly (--set / -f) on that command line. If you set envFrom yourself, add a secretRef for {{ include "entitle-agent.fullname" . }}-datadog-routing.
+Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
+{{- end -}}
+
+{{/* Failure message for a routing v2 token with no clientSecret: it stands in for the
+     Datadog API key, so without it there is nothing to route telemetry with. */}}
+{{- define "entitle-agent.missingClientSecretMessage" -}}
+entitle-agent: the agent token declares routing v2 but has no 'clientSecret' field.
+A routing v2 token authenticates to Entitle with its client secret, which also stands in for the Datadog API key so the real key never leaves this cluster. Without it there is no supported way to route telemetry.
+Resolve it in one of these ways:
+  1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
+  2. If a freshly issued token still lacks the field, contact Entitle support — the token is malformed.
+Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
 {{/* Failure message for an unresolvable imageCredentials. */}}
@@ -449,23 +487,6 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{/* entitle-agent.proxyUrl with no scheme or port — agent.{platform}.entitle.io */}}
 {{- define "entitle-agent.entitleHost" -}}
   {{- include "entitle-agent.proxyUrl" . | trimPrefix "http://" | trimPrefix "https://" | trimSuffix ":8080" -}}
-{{- end -}}
-
-{{/* entitle-agent.proxyUrl with the client secret as basic-auth credentials, over https/:443.
-     Kept separate from entitle-agent.proxyUrl on purpose: that one is also the host
-     source for the image helpers, which strip the scheme.
-     Requires routing v2 as well as a client secret: a v1 token predates the
-     authenticated :443 listener, so credentials there would move it to a scheme
-     and port its proxy does not serve. Falls back to proxyUrl otherwise. */}}
-{{- define "entitle-agent.entitleUrlWithCredentials" -}}
-  {{- $entitleHost := include "entitle-agent.entitleHost" . -}}
-  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
-  {{- if and $entitleHost $clientSecret (eq $routing "v2") -}}
-    {{- printf "https://proxy-auth:%s@%s" (urlquery $clientSecret) $entitleHost -}}
-  {{- else -}}
-    {{- include "entitle-agent.proxyUrl" . -}}
-  {{- end -}}
 {{- end -}}
 
 {{/* Full Datadog logs sidecar image reference including tag.
