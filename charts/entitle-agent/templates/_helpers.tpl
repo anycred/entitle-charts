@@ -311,11 +311,8 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Non-empty when the Datadog agent should talk to the proxy as an origin server.
-     Routing v2 always does — that is what v2 means. There is no opt-out: the client
-     secret authenticates the agent as the Datadog API key, so a v2 token can only be
-     served this way. Older tokens keep DD_PROXY_HTTP/HTTPS.
-     Single source of truth — datadog-routing-secret.yaml must agree with datadogApiKey,
+{{/* Non-empty when the Datadog agent talks to the proxy as an origin server: routing v2
+     always does, older tokens never do. Single source of truth — datadogApiKey must agree,
      or the agent gets reverse URLs while still holding the real Datadog key. */}}
 {{- define "entitle-agent.datadogReverseMode" -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
@@ -325,10 +322,9 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Non-empty when a Datadog container that needs the routing vars cannot reach the Secret
-     holding them, which under v2 is their only source. Only the three containers this
-     chart wires are checked; the subchart's others default to an empty envFrom and are
-     not ours to route. Returns the container name. */}}
+{{/* Returns the name of a Datadog container whose envFrom cannot reach the routing Secret,
+     under v2 its only source. Checks only the three containers this chart wires — the
+     subchart's others default to an empty envFrom and are not ours to route. */}}
 {{- define "entitle-agent.unroutableDatadogContainer" -}}
   {{- $routingSecret := printf "%s-datadog-routing" (include "entitle-agent.fullname" .) -}}
   {{- $containers := dig "agents" "containers" dict .Values.datadog -}}
@@ -410,22 +406,21 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
 {{/* Failure message when a Datadog container's envFrom cannot reach the routing Secret,
      which under v2 holds its only DD_*_URL vars. */}}
 {{- define "entitle-agent.staleDatadogRoutingRefMessage" -}}
-entitle-agent: the Datadog container '{{ include "entitle-agent.unroutableDatadogContainer" . }}' cannot reach its Entitle routing settings.
-Your token uses routing v2, which publishes those settings as the Secret {{ include "entitle-agent.fullname" . }}-datadog-routing, but this release's datadog.agents.containers.{{ include "entitle-agent.unroutableDatadogContainer" . }}.envFrom does not reference it. The reference is optional, so the Datadog agent would start with no Entitle routing settings and silently stop reporting.
-The usual cause is `helm upgrade --reuse-values`, which keeps a previous release's values instead of layering in the current chart defaults. Re-run without it:
+entitle-agent: this upgrade would leave monitoring broken, so it was stopped before making any change.
+The Datadog container '{{ include "entitle-agent.unroutableDatadogContainer" . }}' would start without the settings it needs to send data to Entitle, and would stop reporting without reporting an error.
+This is almost always caused by `helm upgrade --reuse-values`, which reuses your previous configuration instead of taking the new one from this chart version. Re-run the upgrade without it, adding back any values you set yourself with --set or -f:
   helm upgrade entitle-agent entitle/entitle-agent -n <namespace> --set agent.token=<TOKEN>
-Pass any values you had set explicitly (--set / -f) on that command line. If you set envFrom yourself, add a secretRef for {{ include "entitle-agent.fullname" . }}-datadog-routing.
-Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
+If you set datadog.agents.containers.*.envFrom in your own values, keep its secretRef for {{ include "entitle-agent.fullname" . }}-datadog-routing.
+Need help? Contact Entitle support. Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
 {{/* Failure message for a routing v2 token with no clientSecret: it stands in for the
      Datadog API key, so without it there is nothing to route telemetry with. */}}
 {{- define "entitle-agent.missingClientSecretMessage" -}}
-entitle-agent: the agent token declares routing v2 but has no 'clientSecret' field.
-A routing v2 token authenticates to Entitle with its client secret, which also stands in for the Datadog API key so the real key never leaves this cluster. Without it there is no supported way to route telemetry.
-Resolve it in one of these ways:
-  1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
-  2. If a freshly issued token still lacks the field, contact Entitle support — the token is malformed.
+entitle-agent: this agent token is incomplete and cannot be installed — it is missing a credential the agent needs to connect to Entitle.
+Issue a new token in Entitle (Organization Settings), then re-run with it:
+  helm upgrade --install entitle-agent entitle/entitle-agent -n <namespace> --set agent.token=<TOKEN>
+If a newly issued token gives the same error, contact Entitle support.
 Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
