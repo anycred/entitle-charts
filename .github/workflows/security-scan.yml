@@ -1,5 +1,5 @@
 # Workflow name!
-name: 'wiz-cli'
+name: 'security-scan'
 
 # Events that trigger this workflow:
 # - When a pull request is opened or updated
@@ -14,25 +14,32 @@ on:
 permissions: {}
 
 jobs:
-  wiz-cli-iac-scan:
-    name: 'Wiz-cli IaC Scan'
+  security-scan:
+    name: 'BeyondTrust Security Scan'
     runs-on: ubuntu-latest
     environment: wiz
+    if: ${{ github.actor != 'dependabot[bot]' }}
+
+    # Set permissions for GitHub token
     permissions:
       security-events: write  # Needed to upload SARIF results to GitHub Security tab
       contents: read          # Allows the job to read repo content
-      actions: write          # Allows the job to trigger or interact with actions
-    env:
-      SCAN_PATH: "."
-      POLICY: "Audit IaC policy"
+
+    # Default shell for all steps in this job
+    defaults:
+      run:
+        shell: bash
+
     steps:
+      # Step 1: Checkout the repository code
       - name: Check out repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0  # Fetch full history for accurate scan results
 
-      - name: Run WizCLI
-        uses: BeyondTrust/wiz-iac-scan-action@0429602a8db7783139e3f092ba276040203ef095 # v1.0.0
+      # Step 2: Run security scan (Wiz IaC scan via the unified security-scan-action)
+      - name: Run security scan
+        uses: BeyondTrust/security-scan-action@59273ef26ad3471198bcbcaca7ba0751467f3d94 # v1.3.0
         with:
-          wiz_client_id: ${{ secrets.WIZ_CLIENT_ID }}
-          wiz_client_secret: ${{ secrets.WIZ_CLIENT_SECRET }}
+          wiz-client-id: ${{ secrets.WIZ_CLIENT_ID }}
+          wiz-client-secret: ${{ secrets.WIZ_CLIENT_SECRET }}
