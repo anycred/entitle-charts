@@ -21,7 +21,7 @@ data:
 
     NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
     DEPLOYMENT_NAME="{{ include "entitle-agent.fullname" . }}"
-    CONFIGURED_REPO="{{ $configuredRepo }}"
+    DEFAULT_REPO="{{ $defaultRepo }}"
     SECRET_NAME="{{ $secretRefName }}"
     SECRET_KEY="{{ include "entitle-agent.agentSecretKey" . }}"
 
@@ -45,11 +45,13 @@ data:
     ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
     PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
 
+    {{- include "entitle-agent.runtimeRoutingVersion" . | nindent 4 }}
+
     echo "Routing: $ROUTING"
     echo "Platform: $PLATFORM"
 
-    # Check if proxy routing is active (v1 or later; v0 pulls direct from the upstream registry)
-    if [ -n "$ROUTING" ] && [ "$ROUTING" != "v0" ]; then
+    # Proxy routing (v1 and later): the image and its pull secret move to the proxy host.
+    if [ "$ROUTING_VER" -ge 1 ]; then
       if [ -z "$PLATFORM" ]; then
         echo "ERROR: routing=$ROUTING but platform field is missing. Cannot determine proxy URL."
         echo "The deployment will be left with the wrong image registry and will fail to pull images."
@@ -66,10 +68,8 @@ data:
         PROXY_HOST="agent.${PLATFORM}.entitle.io"
       fi
 
-      # Repository path (after the first /) of the CONFIGURED repo, not the default: a variant
-      # like entitle-agent-qa also reaches this hook, and the default's path would patch the
-      # Deployment to the prod repo while the pull secret authorises the variant.
-      REPO_PATH=$(echo "$CONFIGURED_REPO" | sed 's|^[^/]*/||')
+      # Extract the repository path from the default repo (after the first /)
+      REPO_PATH=$(echo "$DEFAULT_REPO" | sed 's|^[^/]*/||')
       PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
 
       echo "Patching deployment to use proxy image: $PROXY_IMAGE"
@@ -95,27 +95,7 @@ data:
       # The extract-pull-secret hook already created the secret, but it's keyed
       # to the upstream registry. We need to re-key it to the proxy host.
       IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
-      CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
-      if [ -z "$IMAGE_CREDS" ] && [ -n "$CLIENT_SECRET" ]; then
-        # Routing v2: no imageCredentials, so build the secret as
-        # base64("proxy-auth:<clientSecret>"). The proxy's auth sidecar matches that magic
-        # username and swaps in the real registry credential.
-        echo "Building docker-login secret from clientSecret for proxy host: $PROXY_HOST"
-
-        PROXY_AUTH=$(printf 'proxy-auth:%s' "$CLIENT_SECRET" | base64 -w0)
-
-        NEW_CREDS=$(jq -n \
-          --arg host "$PROXY_HOST" \
-          --arg auth "$PROXY_AUTH" \
-          '{auths: {($host): {auth: $auth}}}' | base64 -w0)
-
-        kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
-          -n "$NAMESPACE" \
-          --type merge \
-          -p "{\"data\":{\".dockerconfigjson\":\"${NEW_CREDS}\"}}"
-
-        echo "Pull secret built from clientSecret successfully."
-      elif [ -n "$IMAGE_CREDS" ]; then
+      if [ -n "$IMAGE_CREDS" ]; then
         echo "Re-keying docker-login secret for proxy host: $PROXY_HOST"
 
         # Decode the imageCredentials to get the auth object
@@ -136,6 +116,27 @@ data:
           -p "{\"data\":{\".dockerconfigjson\":\"${NEW_CREDS}\"}}"
 
         echo "Pull secret re-keyed successfully."
+      elif [ "$ROUTING_VER" -ge 2 ]; then
+        CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
+        if [ -z "$CLIENT_SECRET" ]; then
+          echo "ERROR: routing=$ROUTING but the token has no clientSecret. Cannot build the pull secret."
+          exit 1
+        fi
+
+        echo "Building docker-login secret from clientSecret for proxy host: $PROXY_HOST"
+
+        # proxy-auth is the magic username the proxy's auth sidecar swaps for the real credential.
+        NEW_CREDS=$(jq -n \
+          --arg host "$PROXY_HOST" \
+          --arg auth "$(printf 'proxy-auth:%s' "$CLIENT_SECRET" | base64 -w0)" \
+          '{auths: {($host): {auth: $auth}}}' | base64 -w0)
+
+        kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
+          -n "$NAMESPACE" \
+          --type merge \
+          -p "{\"data\":{\".dockerconfigjson\":\"${NEW_CREDS}\"}}"
+
+        echo "Pull secret built from clientSecret successfully."
       fi
 
     else

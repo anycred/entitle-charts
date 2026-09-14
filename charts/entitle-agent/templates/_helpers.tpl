@@ -15,11 +15,12 @@ ghcr.io/anycred/entitle-agent
 gcr.io/datadoghq/agent
 {{- end -}}
 
-{{/* "true" for the default agent repository and its variants (entitle-agent-qa,
-     entitle-agent-development). Prefix, not equality: the proxy serves them all under
-     pathPrefix /v2/anycred/, so they get the same host rewrite. A private mirror does not. */}}
+{{/* "true" for the default agent repository and its two variants. The proxy serves all three
+     under pathPrefix /v2/anycred/, so they get the same host rewrite. A private mirror does not. */}}
 {{- define "entitle-agent.agentRepoIsEntitleOwned" -}}
-  {{- if hasPrefix (include "entitle-agent.defaultAgentRepository" .) .Values.agent.image.repository -}}
+  {{- $default := include "entitle-agent.defaultAgentRepository" . -}}
+  {{- $repo := .Values.agent.image.repository -}}
+  {{- if or (eq $repo $default) (eq $repo (printf "%s-qa" $default)) (eq $repo (printf "%s-development" $default)) -}}
     {{- "true" -}}
   {{- end -}}
 {{- end -}}
@@ -493,6 +494,14 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      Absent, empty or unparseable routing yields 0 — the same as v0, i.e. no routing. */}}
 {{- define "entitle-agent.routingVersion" -}}
   {{- include "entitle-agent.extractedRouting" . | trim | trimPrefix "v" | atoi -}}
+{{- end -}}
+
+{{/* routingVersion's bash twin: the hook Jobs' path (agent.secretRef, no token) has no token
+     in .Values, so the version can only be parsed once the Job has read the Secret. Expects
+     $ROUTING, sets $ROUTING_VER — 0 when absent or unparseable, same as routingVersion. */}}
+{{- define "entitle-agent.runtimeRoutingVersion" -}}
+ROUTING_VER=$(printf '%s' "${ROUTING#v}" | grep -E '^[0-9]+$' || true)
+ROUTING_VER=${ROUTING_VER:-0}
 {{- end -}}
 
 {{/* Generates proxy URL from platform value
