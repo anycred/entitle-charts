@@ -631,7 +631,7 @@ healthcheck init container so validators run with identical configuration.
 - name: ENTITLE_PROXY_URL
   value: {{ include "entitle-agent.proxyUrl" . | quote }}
 - name: ENTITLE_MAX_ROUTING_VERSION
-  value: "v1"
+  value: "v2"
 - name: HELM_AGENT_VERSION
   value: {{ .Values.agent.agent_version | default "default" | quote }}
 - name: HELM_AGENT_IMAGE_TAG
