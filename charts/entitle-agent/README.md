@@ -38,6 +38,10 @@ To resolve, pick whichever fits:
 
   `--reuse-values` carries over every value from your previous release, so credentials you set
   before are preserved without re-specifying them.
+
+**Do not use `--reuse-values` to migrate a release onto a v2 token** — it keeps the
+  > previous release's Datadog wiring, which a v2 token cannot use. The chart fails such an
+  > upgrade with instructions. Run that one upgrade without the flag; all others are fine.
 - **Pass the values explicitly:** `--set imageCredentials=<base64-dockerconfigjson>` and/or `--set datadog.datadog.apiKey=<datadog-api-key>` (or `--set imagePullSecret.name=<existing-secret>` to use your own registry secret; `--set datadog.enabled=false` to disable Datadog).
 
 ## Installation Scenarios

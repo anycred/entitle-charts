@@ -1,8 +1,13 @@
 # ConfigMap with proxy env vars — shared by DaemonSet (via envFrom) and Sidecar (via envFrom)
 # URL is dynamically generated from token: http://agent.{platform}.entitle.io:8080
-{{- $routing := include "entitle-agent.extractedRouting" . -}}
+# Routing v1 only. Nothing here is sensitive: the agent tunnels to Datadog through the
+# proxy and keeps the real Datadog API key locally, so the URL carries no credential.
+# Routing v2 is served by datadog-routing-secret.yaml instead — exactly one of the two
+# resources exists for any given token. Keeping this name unchanged from v2.11.0 is what
+# lets --reuse-values upgrades of a v1 release keep resolving their envFrom.
+{{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
 {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-{{- if and $routing (ne $routing "v0") $proxyUrl }}
+{{- if and (ge $ver 1) (lt $ver 2) $proxyUrl }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

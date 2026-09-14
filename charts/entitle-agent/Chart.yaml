@@ -51,12 +51,11 @@ icon: https://app.entitle.io/favicon.ico
 # (custom repos bypass the rewrite to allow direct pulls from private mirrors).
 # v2.11.0 (ICH-5042): customCa.* values mount a combined CA bundle from a Secret/ConfigMap
 # and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
-# v2.12.0 (ICH-5441): routing v2 pulls with the proxy client secret. A v2 token carries no
-# imageCredentials, so the pull secret is built as base64("proxy-auth:<clientSecret>") keyed to
-# the proxy host, which swaps in the real registry credential — both at render time and in the
-# agent.secretRef hook. Install fails if a v2 token has no clientSecret. The entitle-agent-qa /
-# entitle-agent-development repositories now match by prefix, so they get the same treatment.
-version: 2.12.0
+# v2.12.0 (ICH-5410): route Datadog traffic through the agent gateway for v2 agents.
+# clientSecret is stored in a new secret called -datadog-routing and is used in the authentication.
+# v2.13.0 (ICH-5441): pull the agent image through the agent gateway for v2 agents.
+# clientSecret is used as the image pull secret's password.
+version: 2.13.0
 appVersion: "1.0.0"
 
 dependencies:
