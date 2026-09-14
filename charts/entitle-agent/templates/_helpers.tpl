@@ -394,13 +394,8 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
 
 {{/* Failure message for a routing-v2 token with no resolvable clientSecret. */}}
 {{- define "entitle-agent.missingClientSecretMessage" -}}
-entitle-agent: invalid installation - this is not a valid routing v2 token.
-Your token blob has routing 'v2' but no 'clientSecret' field, and no override was provided. A v2 token always carries one: the agent authenticates to the Entitle proxy with it, so without it the agent fails on startup and its image cannot be pulled either (ImagePullBackOff).
-Provide it in one of these ways:
-  1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
-  2. Pass the client secret explicitly: --set agent.clientSecret=<client-secret>
-Upgrading an existing release? Add --reuse-values to keep the values from your previous install.
-Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
+entitle-agent: invalid installation - the agent cannot authenticate to the Entitle gateway.
+For assistance, see https://docs.beyondtrust.com/entitle/docs/entitle-agent or contact BeyondTrust Support.
 {{- end -}}
 
 {{/* Failure message for an unresolvable imageCredentials. */}}
