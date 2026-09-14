@@ -316,8 +316,8 @@ Fullname with image tag
      or the agent gets reverse URLs while still holding the real Datadog key. */}}
 {{- define "entitle-agent.datadogReverseMode" -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
-  {{- if and (eq $routing "v2") $clientSecret -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
+  {{- if and (ge $ver 2) $clientSecret -}}
     {{- "true" -}}
   {{- end -}}
 {{- end -}}
@@ -383,6 +383,7 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
   {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
   {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- if not $isRuntimeSecretRef -}}
     {{- if not $imagePullSecretName -}}
       {{- if not (include "entitle-agent.imageCredentials" . | trim) -}}
@@ -393,11 +394,11 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
       {{- if not (include "entitle-agent.datadogApiKey" . | trim) -}}
         {{- fail (include "entitle-agent.missingDatadogApiKeyMessage" .) -}}
       {{- end -}}
-      {{- if and (include "entitle-agent.unroutableDatadogContainer" .) (eq (include "entitle-agent.extractedRouting" . | trim) "v2") -}}
+      {{- if and (include "entitle-agent.unroutableDatadogContainer" .) (ge $ver 2) -}}
         {{- fail (include "entitle-agent.staleDatadogRoutingRefMessage" .) -}}
       {{- end -}}
     {{- end -}}
-    {{- if and (eq (include "entitle-agent.extractedRouting" . | trim) "v2") (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
+    {{- if and (ge $ver 2) (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
       {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
     {{- end -}}
   {{- end -}}
@@ -463,6 +464,16 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
 {{- end -}}
 
+{{/* The token's routing version as a number, for ordered comparisons.
+     Compare with ge/lt against an integer rather than eq/ne against "vN": a gate written
+     as `eq "v2"` stops firing the day v3 ships, and string order puts "v10" before "v2".
+       {{- if ge $ver 2 }}  v2 and later
+       {{- if lt $ver 2 }}  v1 and earlier
+     Absent, empty or unparseable routing yields 0 — the same as v0, i.e. no routing. */}}
+{{- define "entitle-agent.routingVersion" -}}
+  {{- include "entitle-agent.extractedRouting" . | trim | trimPrefix "v" | atoi -}}
+{{- end -}}
+
 {{/* Generates proxy URL from platform value
      Standard: http://agent.{platform}.entitle.io:8080
      Dev:      http://agent-{num}.dev.entitle.io:8080 (for dev-one, dev-two, dev-three)
@@ -500,11 +511,11 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- define "entitle-agent.datadogImage" -}}
   {{- $repository := include "entitle-agent.datadogImageRepositoryValue" . -}}
   {{- $tag := include "entitle-agent.datadogImageTagValue" . -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $defaultDatadogRepo := include "entitle-agent.defaultDatadogRepository" . -}}
   {{- $isDefault := eq $repository $defaultDatadogRepo -}}
-  {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
+  {{- if and (ge $ver 1) $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
     {{- printf "%s/monitoring-agent/%s:%s" $host $basename $tag -}}
@@ -524,12 +535,12 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
                              If a custom (non-default) repository is explicitly configured,
                              use it as-is to allow direct pulls from private mirrors. */}}
 {{- define "entitle-agent.agentImageRepository" -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
   {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
   {{- $isDefault := eq $repository $defaultAgentRepo -}}
-  {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
+  {{- if and (ge $ver 1) $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
     {{- printf "%s/%s" $host $path -}}
@@ -548,11 +559,11 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      from private mirrors. */}}
 {{- define "entitle-agent.dockerConfigJson" -}}
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
   {{- $agentIsDefault := eq .Values.agent.image.repository $defaultAgentRepo -}}
-  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
+  {{- if and $imageCreds (ge $ver 1) $proxyUrl $agentIsDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}
     {{- $newAuths := dict -}}

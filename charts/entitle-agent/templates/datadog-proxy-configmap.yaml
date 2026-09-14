@@ -5,9 +5,9 @@
 # Routing v2 is served by datadog-routing-secret.yaml instead — exactly one of the two
 # resources exists for any given token. Keeping this name unchanged from v2.11.0 is what
 # lets --reuse-values upgrades of a v1 release keep resolving their envFrom.
-{{- $routing := include "entitle-agent.extractedRouting" . -}}
+{{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
 {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-{{- if and $routing (ne $routing "v0") (ne $routing "v2") $proxyUrl }}
+{{- if and (ge $ver 1) (lt $ver 2) $proxyUrl }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
