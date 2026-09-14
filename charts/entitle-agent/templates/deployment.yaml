@@ -50,7 +50,7 @@ spec:
         imagePullPolicy: Always
         restartPolicy: Always
         envFrom:
-          # Only one of the two exists: ConfigMap for pre-v2 tokens, Secret for v2.
+          # Only one of the two exists: ConfigMap for v1 tokens, Secret for v2.
           - configMapRef:
               name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
               optional: true

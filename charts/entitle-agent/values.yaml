@@ -210,15 +210,15 @@ datadog:
 
   # Routing env vars, created by the parent chart from the token's routing version.
   # Both refs are listed and both are optional because only ever one of them exists:
-  #   pre-v2 token -> ConfigMap entitle-agent-datadog-proxy
-  #   v2 token     -> Secret entitle-agent-datadog-routing
+  #   v1 token -> ConfigMap entitle-agent-datadog-proxy
+  #   v2 token -> Secret entitle-agent-datadog-routing
   agents:
     containers:
       agent:
         envFrom:
           - configMapRef:
               name: entitle-agent-datadog-proxy
-              optional: true  # only created for pre-v2 tokens
+              optional: true  # only created for v1 tokens
           - secretRef:
               name: entitle-agent-datadog-routing
               optional: true  # only created for v2 tokens
