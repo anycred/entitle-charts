@@ -52,8 +52,7 @@ icon: https://app.entitle.io/favicon.ico
 # v2.11.0 (ICH-5042): customCa.* values mount a combined CA bundle from a Secret/ConfigMap
 # and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
 # v2.12.0: route Datadog traffic through the agent gateway for v2 agents.
-# A new -datadog-routing Secret is used for routing, and the clientSecret value is used
-# for authentication.
+# clientSecret is stored in a new secret called -datadog-routing and is used in the authentication.
 version: 2.12.0
 appVersion: "1.0.0"
 
