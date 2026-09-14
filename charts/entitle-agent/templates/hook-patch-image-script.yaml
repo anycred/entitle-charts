@@ -137,6 +137,12 @@ data:
           -p "{\"data\":{\".dockerconfigjson\":\"${NEW_CREDS}\"}}"
 
         echo "Pull secret built from clientSecret successfully."
+      else
+        # routing=v1 with no imageCredentials: the deployment was just re-pointed at the
+        # proxy host but the pull secret is still empty, so the pod would sit in
+        # ImagePullBackOff. Fail loudly instead of reporting success.
+        echo "ERROR: routing=$ROUTING but the token has no imageCredentials. Cannot build the pull secret."
+        exit 1
       fi
 
     else
