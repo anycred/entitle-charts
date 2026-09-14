@@ -433,7 +433,7 @@ Provide it in one of these ways:
   1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
   2. Pass the credentials explicitly: --set imageCredentials=<base64-dockerconfigjson>
   3. Reference a pre-existing image pull Secret: --set imagePullSecret.name=<secret-name>
-Upgrading an existing release? Add --reuse-values to keep the values from your previous install.
+Upgrading an existing release? Add --reuse-values to keep the values from your previous install (except when switching to a v2 token — see the README).
 Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
