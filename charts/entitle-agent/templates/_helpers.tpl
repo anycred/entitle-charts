@@ -325,7 +325,7 @@ Fullname with image tag
      always does, older tokens never do. Single source of truth — datadogApiKey must agree,
      or the agent gets reverse URLs while still holding the real Datadog key. */}}
 {{- define "entitle-agent.datadogReverseMode" -}}
-  {{- $clientSecret := include "entitle-agent.clientSecret" . | trim -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
   {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- if and (ge $ver 2) $clientSecret -}}
     {{- "true" -}}
@@ -355,27 +355,13 @@ Fullname with image tag
 
 {{/* Resolves datadogApiKey: reverse mode sends the client secret > explicit value > agent.token */}}
 {{- define "entitle-agent.datadogApiKey" -}}
-  {{- $clientSecret := include "entitle-agent.clientSecret" . | trim -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
   {{- if include "entitle-agent.datadogReverseMode" . -}}
     {{- $clientSecret -}}
   {{- else if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
     {{- .Values.datadog.datadog.apiKey -}}
   {{- else -}}
     {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "datadogApiKey") -}}
-  {{- end -}}
-{{- end -}}
-
-{{/* Resolves clientSecret: explicit value > extract from agent.token. Only v2 tokens carry it.
-     hasKey guard: the value is absent on --reuse-values upgrades from before v2.13.0. */}}
-{{- define "entitle-agent.clientSecret" -}}
-  {{- $explicit := "" -}}
-  {{- if hasKey .Values.agent "clientSecret" -}}
-    {{- $explicit = .Values.agent.clientSecret | default "" -}}
-  {{- end -}}
-  {{- if $explicit -}}
-    {{- $explicit -}}
-  {{- else -}}
-    {{- include "entitle-agent.extractedClientSecret" . -}}
   {{- end -}}
 {{- end -}}
 
@@ -411,7 +397,7 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- if not $isRuntimeSecretRef -}}
     {{- /* Checked before the pull secret: on v2 the clientSecret is also the pull
            secret's password, so without it every other credential is moot. */ -}}
-    {{- if and (ge $ver 2) (not (include "entitle-agent.clientSecret" . | trim)) -}}
+    {{- if and (ge $ver 2) (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
       {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
     {{- end -}}
     {{- if not $imagePullSecretName -}}
@@ -481,7 +467,8 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
 {{- end -}}
 
-{{/* Extracts the client secret from the token. */}}
+{{/* Extracts the client secret from the token — its only source. It is never a value:
+     it must not be settable from the installation prompt or a --set path. Only v2 tokens carry it. */}}
 {{- define "entitle-agent.extractedClientSecret" -}}
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
 {{- end -}}
@@ -593,7 +580,7 @@ ROUTING_VER=${ROUTING_VER:-0}
   {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $host := include "entitle-agent.entitleHost" . -}}
-  {{- $clientSecret := include "entitle-agent.clientSecret" . | trim -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
   {{- $viaProxy := and (ge $ver 1) $proxyUrl (include "entitle-agent.agentRepoIsEntitleOwned" .) -}}
   {{- if and $viaProxy $imageCreds -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}

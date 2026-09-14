@@ -174,11 +174,6 @@
           "default": "",
           "description": "Base64-encoded agent token blob. Leave empty if using agent.secretRef."
         },
-        "clientSecret": {
-          "type": "string",
-          "default": "",
-          "description": "Credential the agent presents to the Entitle proxy (routing v2). Auto-extracted from agent.token if not set."
-        },
         "secretRef": {
           "type": "object",
           "description": "Reference a pre-existing Secret containing the agent configuration.",
