@@ -15,6 +15,16 @@ ghcr.io/anycred/entitle-agent
 gcr.io/datadoghq/agent
 {{- end -}}
 
+{{/* "true" for the default agent repository and its two variants. The proxy serves all three
+     under pathPrefix /v2/anycred/, so they get the same host rewrite. A private mirror does not. */}}
+{{- define "entitle-agent.agentRepoIsEntitleOwned" -}}
+  {{- $default := include "entitle-agent.defaultAgentRepository" . -}}
+  {{- $repo := .Values.agent.image.repository -}}
+  {{- if or (eq $repo $default) (eq $repo (printf "%s-qa" $default)) (eq $repo (printf "%s-development" $default)) -}}
+    {{- "true" -}}
+  {{- end -}}
+{{- end -}}
+
 {{/*
 =============================================================================
 Safe accessors for fields introduced in v2.0.0 — prevents nil pointer errors
@@ -385,8 +395,13 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
   {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- if not $isRuntimeSecretRef -}}
+    {{- /* Checked before the pull secret: on v2 the clientSecret is also the pull
+           secret's password, so without it every other credential is moot. */ -}}
+    {{- if and (ge $ver 2) (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
+      {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
+    {{- end -}}
     {{- if not $imagePullSecretName -}}
-      {{- if not (include "entitle-agent.imageCredentials" . | trim) -}}
+      {{- if not (include "entitle-agent.dockerConfigJson" . | trim) -}}
         {{- fail (include "entitle-agent.missingImageCredentialsMessage" .) -}}
       {{- end -}}
     {{- end -}}
@@ -398,10 +413,13 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
         {{- fail (include "entitle-agent.staleDatadogRoutingRefMessage" .) -}}
       {{- end -}}
     {{- end -}}
-    {{- if and (ge $ver 2) (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
-      {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
-    {{- end -}}
   {{- end -}}
+{{- end -}}
+
+{{/* Failure message for a routing-v2 token with no resolvable clientSecret. */}}
+{{- define "entitle-agent.missingClientSecretMessage" -}}
+entitle-agent: this agent token is incomplete and cannot be installed — it is missing a credential the agent needs to connect to Entitle.
+For assistance, see https://docs.beyondtrust.com/entitle/docs/entitle-agent or contact BeyondTrust Support.
 {{- end -}}
 
 {{/* Failure message when a Datadog container's envFrom cannot reach the routing Secret,
@@ -413,16 +431,6 @@ This is almost always caused by `helm upgrade --reuse-values`, which reuses your
   helm upgrade entitle-agent entitle/entitle-agent -n <namespace> --set agent.token=<TOKEN>
 If you set datadog.agents.containers.*.envFrom in your own values, keep its secretRef for {{ include "entitle-agent.fullname" . }}-datadog-routing.
 Need help? Contact Entitle support. Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
-{{- end -}}
-
-{{/* Failure message for a routing v2 token with no clientSecret: it stands in for the
-     Datadog API key, so without it there is nothing to route telemetry with. */}}
-{{- define "entitle-agent.missingClientSecretMessage" -}}
-entitle-agent: this agent token is incomplete and cannot be installed — it is missing a credential the agent needs to connect to Entitle.
-Issue a new token in Entitle (Organization Settings), then re-run with it:
-  helm upgrade --install entitle-agent entitle/entitle-agent -n <namespace> --set agent.token=<TOKEN>
-If a newly issued token gives the same error, contact Entitle support.
-Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
 {{/* Failure message for an unresolvable imageCredentials. */}}
@@ -459,7 +467,8 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
 {{- end -}}
 
-{{/* Extracts the client secret from the token. */}}
+{{/* Extracts the client secret from the token — its only source. It is never a value:
+     it must not be settable from the installation prompt or a --set path. Only v2 tokens carry it. */}}
 {{- define "entitle-agent.extractedClientSecret" -}}
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
 {{- end -}}
@@ -472,6 +481,14 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      Absent, empty or unparseable routing yields 0 — the same as v0, i.e. no routing. */}}
 {{- define "entitle-agent.routingVersion" -}}
   {{- include "entitle-agent.extractedRouting" . | trim | trimPrefix "v" | atoi -}}
+{{- end -}}
+
+{{/* routingVersion's bash twin: the hook Jobs' path (agent.secretRef, no token) has no token
+     in .Values, so the version can only be parsed once the Job has read the Secret. Expects
+     $ROUTING, sets $ROUTING_VER — 0 when absent or unparseable, same as routingVersion. */}}
+{{- define "entitle-agent.runtimeRoutingVersion" -}}
+ROUTING_VER=$(printf '%s' "${ROUTING#v}" | grep -E '^[0-9]+$' || true)
+ROUTING_VER=${ROUTING_VER:-0}
 {{- end -}}
 
 {{/* Generates proxy URL from platform value
@@ -538,12 +555,9 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
-  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
-  {{- $isDefault := eq $repository $defaultAgentRepo -}}
-  {{- if and (ge $ver 1) $proxyUrl $isDefault -}}
-    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+  {{- if and (ge $ver 1) $proxyUrl (include "entitle-agent.agentRepoIsEntitleOwned" .) -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
-    {{- printf "%s/%s" $host $path -}}
+    {{- printf "%s/%s" (include "entitle-agent.entitleHost" .) $path -}}
   {{- else -}}
     {{- $repository -}}
   {{- end -}}
@@ -556,21 +570,27 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      username/password are unchanged — the proxy forwards the basic-auth /token call to
      the real upstream). Only rewrite if the agent repository is using the default.
      If agent is custom, pass imageCredentials through unchanged to allow direct pulls
-     from private mirrors. */}}
+     from private mirrors.
+
+     Routing v2 carries no imageCredentials: build the entry as base64("proxy-auth:<clientSecret>")
+     instead. "proxy-auth" is the magic username the proxy's auth sidecar matches on; it validates
+     the secret and swaps in the real registry credential, so the cluster never holds one. */}}
 {{- define "entitle-agent.dockerConfigJson" -}}
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
   {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
-  {{- $agentIsDefault := eq .Values.agent.image.repository $defaultAgentRepo -}}
-  {{- if and $imageCreds (ge $ver 1) $proxyUrl $agentIsDefault -}}
-    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+  {{- $host := include "entitle-agent.entitleHost" . -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
+  {{- $viaProxy := and (ge $ver 1) $proxyUrl (include "entitle-agent.agentRepoIsEntitleOwned" .) -}}
+  {{- if and $viaProxy $imageCreds -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}
     {{- $newAuths := dict -}}
     {{- range $k, $v := $decoded.auths -}}
       {{- $_ := set $newAuths $host $v -}}
     {{- end -}}
     {{- dict "auths" $newAuths | toJson | b64enc -}}
+  {{- else if and $viaProxy $clientSecret (ge $ver 2) -}}
+    {{- dict "auths" (dict $host (dict "auth" (printf "proxy-auth:%s" $clientSecret | b64enc))) | toJson | b64enc -}}
   {{- else -}}
     {{- $imageCreds -}}
   {{- end -}}

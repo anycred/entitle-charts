@@ -51,9 +51,11 @@ icon: https://app.entitle.io/favicon.ico
 # (custom repos bypass the rewrite to allow direct pulls from private mirrors).
 # v2.11.0 (ICH-5042): customCa.* values mount a combined CA bundle from a Secret/ConfigMap
 # and set ENTITLE_CUSTOM_CA_CERT_PATH, so custom CA trust survives helm upgrade.
-# v2.12.0: route Datadog traffic through the agent gateway for v2 agents.
+# v2.12.0 (ICH-5410): route Datadog traffic through the agent gateway for v2 agents.
 # clientSecret is stored in a new secret called -datadog-routing and is used in the authentication.
-version: 2.12.0
+# v2.13.0 (ICH-5441): pull the agent image through the agent gateway for v2 agents.
+# clientSecret is used as the image pull secret's password.
+version: 2.13.0
 appVersion: "1.0.0"
 
 dependencies:

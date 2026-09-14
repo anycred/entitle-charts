@@ -14,7 +14,7 @@ the default ghcr.io repository. This hook corrects that post-deploy.
 {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
 {{- $defaultRepo := include "entitle-agent.defaultAgentRepository" . -}}
 {{- $configuredRepo := .Values.agent.image.repository -}}
-{{- $isDefaultRepo := eq $configuredRepo $defaultRepo -}}
+{{- $isDefaultRepo := include "entitle-agent.agentRepoIsEntitleOwned" . -}}
 {{- if and $secretRefName (not $hasToken) $isDefaultRepo }}
 apiVersion: batch/v1
 kind: Job
