@@ -72,6 +72,10 @@ spec:
               -n "$NAMESPACE" \
               --type merge \
               -p "{\"data\":{\".dockerconfigjson\":\"${IMAGE_CREDS}\"}}"
+          elif [ -n "$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')" ]; then
+            # Routing v2: no imageCredentials by design. The post-install hook-patch-image
+            # Job builds the secret from clientSecret once it knows the proxy host.
+            echo "No imageCredentials in token (routing v2) - the post-install hook will build the pull secret from clientSecret."
           else
             echo "WARNING: No imageCredentials found in token."
           fi

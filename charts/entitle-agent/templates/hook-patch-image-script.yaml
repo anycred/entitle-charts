@@ -2,7 +2,7 @@
 {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
 {{- $defaultRepo := include "entitle-agent.defaultAgentRepository" . -}}
 {{- $configuredRepo := .Values.agent.image.repository -}}
-{{- $isDefaultRepo := eq $configuredRepo $defaultRepo -}}
+{{- $isDefaultRepo := include "entitle-agent.agentRepoIsEntitleOwned" . -}}
 {{- if and $secretRefName (not $hasToken) $isDefaultRepo }}
 apiVersion: v1
 kind: ConfigMap
@@ -21,7 +21,7 @@ data:
 
     NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
     DEPLOYMENT_NAME="{{ include "entitle-agent.fullname" . }}"
-    DEFAULT_REPO="{{ $defaultRepo }}"
+    CONFIGURED_REPO="{{ $configuredRepo }}"
     SECRET_NAME="{{ $secretRefName }}"
     SECRET_KEY="{{ include "entitle-agent.agentSecretKey" . }}"
 
@@ -45,13 +45,15 @@ data:
     ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
     PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
 
+    {{- include "entitle-agent.runtimeRoutingVersion" . | nindent 4 }}
+
     echo "Routing: $ROUTING"
     echo "Platform: $PLATFORM"
 
-    # Check if routing v1 is active
-    if [ "$ROUTING" = "v1" ]; then
+    # Proxy routing (v1 and later): the image and its pull secret move to the proxy host.
+    if [ "$ROUTING_VER" -ge 1 ]; then
       if [ -z "$PLATFORM" ]; then
-        echo "ERROR: routing=v1 but platform field is missing. Cannot determine proxy URL."
+        echo "ERROR: routing=$ROUTING but platform field is missing. Cannot determine proxy URL."
         echo "The deployment will be left with the wrong image registry and will fail to pull images."
         exit 1
       fi
@@ -66,8 +68,8 @@ data:
         PROXY_HOST="agent.${PLATFORM}.entitle.io"
       fi
 
-      # Extract the repository path from the default repo (after the first /)
-      REPO_PATH=$(echo "$DEFAULT_REPO" | sed 's|^[^/]*/||')
+      # Extract the repository path from the configured repo (after the first /)
+      REPO_PATH=$(echo "$CONFIGURED_REPO" | sed 's|^[^/]*/||')
       PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
 
       echo "Patching deployment to use proxy image: $PROXY_IMAGE"
@@ -114,10 +116,37 @@ data:
           -p "{\"data\":{\".dockerconfigjson\":\"${NEW_CREDS}\"}}"
 
         echo "Pull secret re-keyed successfully."
+      elif [ "$ROUTING_VER" -ge 2 ]; then
+        CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
+        if [ -z "$CLIENT_SECRET" ]; then
+          echo "ERROR: routing=$ROUTING but the token has no clientSecret. Cannot build the pull secret."
+          exit 1
+        fi
+
+        echo "Building docker-login secret from clientSecret for proxy host: $PROXY_HOST"
+
+        # proxy-auth is the magic username the proxy's auth sidecar swaps for the real credential.
+        NEW_CREDS=$(jq -n \
+          --arg host "$PROXY_HOST" \
+          --arg auth "$(printf 'proxy-auth:%s' "$CLIENT_SECRET" | base64 -w0)" \
+          '{auths: {($host): {auth: $auth}}}' | base64 -w0)
+
+        kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
+          -n "$NAMESPACE" \
+          --type merge \
+          -p "{\"data\":{\".dockerconfigjson\":\"${NEW_CREDS}\"}}"
+
+        echo "Pull secret built from clientSecret successfully."
+      else
+        # routing=v1 with no imageCredentials: the deployment was just re-pointed at the
+        # proxy host but the pull secret is still empty, so the pod would sit in
+        # ImagePullBackOff. Fail loudly instead of reporting success.
+        echo "ERROR: routing=$ROUTING but the token has no imageCredentials. Cannot build the pull secret."
+        exit 1
       fi
 
     else
-      echo "Routing is not v1 (found: '$ROUTING'). Skipping image patch."
+      echo "Routing is v0 or absent (found: '$ROUTING'). Skipping image patch."
     fi
 
     echo "Done."
