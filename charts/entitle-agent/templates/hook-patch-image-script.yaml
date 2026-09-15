@@ -21,7 +21,7 @@ data:
 
     NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
     DEPLOYMENT_NAME="{{ include "entitle-agent.fullname" . }}"
-    DEFAULT_REPO="{{ $defaultRepo }}"
+    CONFIGURED_REPO="{{ $configuredRepo }}"
     SECRET_NAME="{{ $secretRefName }}"
     SECRET_KEY="{{ include "entitle-agent.agentSecretKey" . }}"
 
@@ -68,8 +68,8 @@ data:
         PROXY_HOST="agent.${PLATFORM}.entitle.io"
       fi
 
-      # Extract the repository path from the default repo (after the first /)
-      REPO_PATH=$(echo "$DEFAULT_REPO" | sed 's|^[^/]*/||')
+      # Extract the repository path from the configured repo (after the first /)
+      REPO_PATH=$(echo "$CONFIGURED_REPO" | sed 's|^[^/]*/||')
       PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
 
       echo "Patching deployment to use proxy image: $PROXY_IMAGE"
