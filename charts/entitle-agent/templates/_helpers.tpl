@@ -601,6 +601,14 @@ healthcheck init container so validators run with identical configuration.
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "autoUpdate") -}}
 {{- end -}}
 
+{{/* The token's autoUpdate version as a number, for ordered comparisons.
+     Compare with ge/lt against an integer rather than eq/ne against "vN": a gate written
+     as `eq "v1"` stops firing the day v2 ships, and string order puts "v10" before "v2".
+     Absent, empty or unparseable autoUpdate yields 0 — the same as v0, i.e. no auto-update. */}}
+{{- define "entitle-agent.autoUpdateVersion" -}}
+  {{- include "entitle-agent.extractedAutoUpdate" . | trim | trimPrefix "v" | atoi -}}
+{{- end -}}
+
 {{/*
 Validates agent_version + image.tag compatibility. Fails helm install on incompatible combos.
 */}}
@@ -645,16 +653,21 @@ Resolves the effective image tag based on agent_version and image.tag.
 Resolves restart policy: "always" or "never".
   - Custom image.tag (non-latest) => never
   - default + autoUpdate missing/v0 => never
-  - default + autoUpdate v1 => always
+  - default + autoUpdate v1 or later => always
   - latest-on-restart => never
   - auto-update => always
   - hardcoded version => never
+
+On the default path the token is the only source: use the autoUpdate it carries, and fall
+back to never when it carries none. A token that is unreadable at render time — agent.secretRef
+with no agent.token — therefore also yields never, and the agent resolves the real value from
+the mothership's remote settings instead.
 */}}
 {{- define "entitle-agent.resolvedRestartPolicy" -}}
   {{- $imageTag := .Values.agent.image.tag | default "latest" -}}
   {{- $agentVersion := .Values.agent.agent_version | default "default" -}}
   {{- $isLatest := eq $imageTag "latest" -}}
-  {{- $autoUpdate := include "entitle-agent.extractedAutoUpdate" . -}}
+  {{- $autoUpdateVer := include "entitle-agent.autoUpdateVersion" . | atoi -}}
 
   {{- if not $isLatest -}}
     {{- "never" -}}
@@ -663,7 +676,7 @@ Resolves restart policy: "always" or "never".
   {{- else if eq $agentVersion "latest-on-restart" -}}
     {{- "never" -}}
   {{- else if eq $agentVersion "default" -}}
-    {{- if eq $autoUpdate "v1" -}}
+    {{- if ge $autoUpdateVer 1 -}}
       {{- "always" -}}
     {{- else -}}
       {{- "never" -}}
