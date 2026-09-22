@@ -56,6 +56,14 @@ spec:
           # Decode to get the full token JSON
           FULL_TOKEN=$(echo "$B64_CONFIG" | base64 -d)
 
+          ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
+          PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
+          CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
+          {{- include "entitle-agent.runtimeRoutingVersion" . | nindent 10 }}
+
+          echo "Routing: $ROUTING"
+          echo "Platform: $PLATFORM"
+
           # --- Patch docker-login secret ---
           {{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
           {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . }}
@@ -72,7 +80,7 @@ spec:
               -n "$NAMESPACE" \
               --type merge \
               -p "{\"data\":{\".dockerconfigjson\":\"${IMAGE_CREDS}\"}}"
-          elif [ -n "$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')" ]; then
+          elif [ -n "$CLIENT_SECRET" ]; then
             # Routing v2: no imageCredentials by design. The post-install hook-patch-image
             # Job builds the secret from clientSecret once it knows the proxy host.
             echo "No imageCredentials in token (routing v2) - the post-install hook will build the pull secret from clientSecret."
@@ -84,7 +92,19 @@ spec:
           {{- end }}
 
           # --- Patch datadog secret ---
+          # Under routing v2 the client secret IS the Datadog API key: the agent talks to
+          # the Entitle proxy as an origin server, which authenticates on that value and
+          # swaps in the real Datadog key. Mirrors entitle-agent.datadogApiKey, which does
+          # the same resolution on the render-time path.
           DD_API_KEY=$(echo "$FULL_TOKEN" | jq -r '.datadogApiKey // empty')
+
+          if [ "$ROUTING_VER" -ge 2 ]; then
+            if [ -z "$CLIENT_SECRET" ]; then
+              echo "ERROR: routing=$ROUTING but the token has no clientSecret. Cannot configure monitoring."
+              exit 1
+            fi
+            DD_API_KEY="$CLIENT_SECRET"
+          fi
 
           if [ -n "$DD_API_KEY" ]; then
             echo "Patching datadog secret with extracted datadogApiKey"
@@ -94,6 +114,42 @@ spec:
               -p "{\"stringData\":{\"api-key\":\"${DD_API_KEY}\"}}"
           else
             echo "WARNING: No datadogApiKey found in token."
+          fi
+
+          # --- Fill the routing resource the render-time path cannot build ---
+          # Both were created empty by the pre-install hooks in datadog-proxy-configmap.yaml
+          # and datadog-routing-secret.yaml, because the routing version is only knowable
+          # once this Job has read the token. Fill exactly the one this token calls for;
+          # the other stays empty and contributes nothing through its optional envFrom.
+          if [ "$ROUTING_VER" -ge 1 ]; then
+            if [ -z "$PLATFORM" ]; then
+              echo "ERROR: routing=$ROUTING but platform field is missing. Cannot determine the proxy host."
+              echo "Monitoring would silently stop reporting, so the install is stopped here instead."
+              exit 1
+            fi
+            {{- include "entitle-agent.runtimeProxyHost" . | nindent 12 }}
+          fi
+
+          if [ "$ROUTING_VER" -ge 2 ]; then
+            echo "Populating datadog-routing secret for proxy host: $PROXY_HOST"
+            # host:port for logs, NOT a URL — a scheme makes the logs agent refuse to start.
+            kubectl patch secret "{{ include "entitle-agent.fullname" . }}-datadog-routing" \
+              -n "$NAMESPACE" \
+              --type merge \
+              -p "$(jq -n \
+                --arg url "$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)" \
+                --arg logs "$(printf '%s:443' "$PROXY_HOST" | base64 -w0)" \
+                --arg http "$(printf 'true' | base64 -w0)" \
+                '{data:{DD_DD_URL:$url,DD_PROCESS_CONFIG_PROCESS_DD_URL:$url,DD_LOGS_CONFIG_LOGS_DD_URL:$logs,DD_LOGS_CONFIG_USE_HTTP:$http}}')"
+          elif [ "$ROUTING_VER" -ge 1 ]; then
+            echo "Populating datadog-proxy configmap for proxy host: $PROXY_HOST"
+            kubectl patch configmap "{{ include "entitle-agent.fullname" . }}-datadog-proxy" \
+              -n "$NAMESPACE" \
+              --type merge \
+              -p "$(jq -n --arg url "http://${PROXY_HOST}:8080" \
+                '{data:{DD_PROXY_HTTP:$url,DD_PROXY_HTTPS:$url}}')"
+          else
+            echo "Routing is v0 or absent (found: '$ROUTING'). Datadog talks to datadoghq.com directly."
           fi
 
           echo "Done."

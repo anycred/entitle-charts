@@ -55,7 +55,11 @@ icon: https://app.entitle.io/favicon.ico
 # clientSecret is stored in a new secret called -datadog-routing and is used in the authentication.
 # v2.13.0 (ICH-5441): pull the agent image through the agent gateway for v2 agents.
 # clientSecret is used as the image pull secret's password.
-version: 2.13.0
+# v2.13.1 (ICH-4830): agent.secretRef installs now get Datadog routing too — the routing
+# ConfigMap/Secret are rendered empty as pre-install hooks and filled by the extract Job,
+# which also resolves the Datadog API key from clientSecret on v2. A customer-managed
+# imagePullSecret.name no longer fails the patch-image hook.
+version: 2.13.1
 appVersion: "1.0.0"
 
 dependencies:

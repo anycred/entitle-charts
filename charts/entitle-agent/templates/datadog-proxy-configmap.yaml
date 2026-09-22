@@ -3,11 +3,19 @@
 # Routing v1 only. Nothing here is sensitive: the agent tunnels to Datadog through the
 # proxy and keeps the real Datadog API key locally, so the URL carries no credential.
 # Routing v2 is served by datadog-routing-secret.yaml instead — exactly one of the two
-# resources exists for any given token. Keeping this name unchanged from v2.11.0 is what
+# holds data for any given token. Keeping this name unchanged from v2.11.0 is what
 # lets --reuse-values upgrades of a v1 release keep resolving their envFrom.
+#
+# SecretRef path: the token is not readable at render time, so the routing version is
+# unknown and both resources are created empty as pre-install hooks. hook-extract-job.yaml
+# fills whichever one the token's routing version calls for; the other stays empty and
+# contributes nothing through its optional envFrom.
 {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
 {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-{{- if and (ge $ver 1) (lt $ver 2) $proxyUrl }}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
+{{- if or (and (ge $ver 1) (lt $ver 2) $proxyUrl) $isRuntimeSecretRef }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,10 +23,23 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "entitle-agent.labels" . | nindent 4 }}
+  {{- if $isRuntimeSecretRef }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    # Recreated empty on every upgrade so a token that moved v1 -> v2 cannot leave the
+    # previous shape's vars behind — kubectl patch --type merge only adds keys.
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
+{{- if $isRuntimeSecretRef }}
+# Populated by hook-extract-job.yaml when the token turns out to be routing v1.
+data: {}
+{{- else }}
 data:
   # DD-specific proxy vars — only affects Datadog agent's own outbound traffic
   # (metrics, logs, APM → datadoghq.com). Internal checks (kubelet, kube API)
   # use standard HTTP libs (requests/urllib3) which are NOT proxied.
   DD_PROXY_HTTP: {{ $proxyUrl | quote }}
   DD_PROXY_HTTPS: {{ $proxyUrl | quote }}
+{{- end }}
 {{- end }}
