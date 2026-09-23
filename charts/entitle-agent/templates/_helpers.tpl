@@ -323,11 +323,21 @@ Fullname with image tag
 
 {{/* Non-empty when the Datadog agent talks to the proxy as an origin server: routing v2
      always does, older tokens never do. Single source of truth — datadogApiKey must agree,
-     or the agent gets reverse URLs while still holding the real Datadog key. */}}
+     or the agent gets reverse URLs while still holding the real Datadog key.
+
+     The host is part of the predicate, not just the version and the secret, because this
+     value decides both halves of reverse mode: datadogApiKey sends the clientSecret as the
+     Datadog API key, and datadog-routing-secret.yaml points DD_*_URL at the host that
+     recognises it. A token with no platform yields no host and so no routing Secret, while
+     a version-only predicate would still hand out the credential — and envFrom over a
+     missing Secret is optional by design, so the agent would start with Datadog's default
+     endpoint and send the clientSecret to datadoghq.com. Gate both on one value and that
+     split cannot open; entitle-agent.validateRequiredCredentials rejects the token outright. */}}
 {{- define "entitle-agent.datadogReverseMode" -}}
   {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
+  {{- $host := include "entitle-agent.entitleHost" . | trim -}}
   {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
-  {{- if and (ge $ver 2) $clientSecret -}}
+  {{- if and (ge $ver 2) $clientSecret $host -}}
     {{- "true" -}}
   {{- end -}}
 {{- end -}}
@@ -400,6 +410,11 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
     {{- if and (ge $ver 2) (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
       {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
     {{- end -}}
+    {{- /* No platform means no host — nothing the agent sends has an Entitle
+           destination. Fail on the missing field, not on its downstream effects. */ -}}
+    {{- if and (ge $ver 2) (not (include "entitle-agent.entitleHost" . | trim)) -}}
+      {{- fail (include "entitle-agent.missingPlatformMessage" .) -}}
+    {{- end -}}
     {{- if not $imagePullSecretName -}}
       {{- if not (include "entitle-agent.dockerConfigJson" . | trim) -}}
         {{- fail (include "entitle-agent.missingImageCredentialsMessage" .) -}}
@@ -419,6 +434,13 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
 {{/* Failure message for a routing-v2 token with no resolvable clientSecret. */}}
 {{- define "entitle-agent.missingClientSecretMessage" -}}
 entitle-agent: this agent token is incomplete and cannot be installed — it is missing a credential the agent needs to connect to Entitle.
+For assistance, see https://docs.beyondtrust.com/entitle/docs/entitle-agent or contact BeyondTrust Support.
+{{- end -}}
+
+{{/* Failure message for a routing-v2 token with no platform, and so no host to reach. */}}
+{{- define "entitle-agent.missingPlatformMessage" -}}
+entitle-agent: this agent token is incomplete and cannot be installed — it is missing the field that says which Entitle environment the agent belongs to, so there is nowhere to send the agent's traffic.
+Issue a new token from Entitle (Org Settings) and re-run the install with it: --set agent.token=<TOKEN>
 For assistance, see https://docs.beyondtrust.com/entitle/docs/entitle-agent or contact BeyondTrust Support.
 {{- end -}}
 
