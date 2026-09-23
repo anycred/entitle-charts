@@ -59,6 +59,8 @@ icon: https://app.entitle.io/favicon.ico
 # ConfigMap/Secret are rendered empty as pre-install hooks and filled by the extract Job,
 # which also resolves the Datadog API key from clientSecret on v2. A customer-managed
 # imagePullSecret.name no longer fails the patch-image hook.
+# v2 tokens need chart >=2.12.0: older charts have no clientSecret, so a release on a v2
+# token cannot go back below it.
 version: 2.13.1
 appVersion: "1.0.0"
 
