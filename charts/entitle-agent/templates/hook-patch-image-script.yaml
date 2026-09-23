@@ -57,7 +57,7 @@ data:
     # Proxy routing (v1 and later): the image and its pull secret move to the proxy host.
     if [ "$ROUTING_VER" -ge 1 ]; then
       if [ -z "$PLATFORM" ]; then
-        echo "ERROR: routing=$ROUTING but platform field is missing. Cannot determine proxy URL."
+        echo "ERROR: routing=$ROUTING but platform field is missing. Cannot determine the agent gateway URL."
         echo "The deployment will be left with the wrong image registry and will fail to pull images."
         exit 1
       fi
@@ -69,7 +69,7 @@ data:
       REPO_PATH=$(echo "$CONFIGURED_REPO" | sed 's|^[^/]*/||')
       PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
 
-      echo "Patching deployment to use proxy image: $PROXY_IMAGE"
+      echo "Patching deployment to use agent gateway image: $PROXY_IMAGE"
 
       # Get current image tag from deployment
       CURRENT_IMAGE=$(kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}')
@@ -99,7 +99,7 @@ data:
         echo "NOTE: pull secret '$OWN_PULL_SECRET' is customer-managed; not modifying it."
         echo "      It must contain an entry for $PROXY_HOST or the agent image cannot be pulled."
       elif [ -n "$IMAGE_CREDS" ]; then
-        echo "Re-keying docker-login secret for proxy host: $PROXY_HOST"
+        echo "Re-keying docker-login secret for agent gateway: $PROXY_HOST"
 
         # Decode the imageCredentials to get the auth object
         DECODED_CREDS=$(echo "$IMAGE_CREDS" | base64 -d)
@@ -126,7 +126,7 @@ data:
           exit 1
         fi
 
-        echo "Building docker-login secret from clientSecret for proxy host: $PROXY_HOST"
+        echo "Building docker-login secret from clientSecret for agent gateway: $PROXY_HOST"
 
         # proxy-auth is the magic username the proxy's auth sidecar swaps for the real credential.
         NEW_CREDS=$(jq -n \

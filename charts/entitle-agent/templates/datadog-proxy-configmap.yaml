@@ -33,6 +33,10 @@ metadata:
   {{- end }}
 {{- if $isRuntimeSecretRef }}
 # Populated by hook-extract-job.yaml when the token turns out to be routing v1.
+# Same ordering invariant as datadog-routing-secret.yaml: the Job fills this ConfigMap
+# before it patches the api-key, because Helm does not undo hook side-effects and a
+# failure between the two writes leaves a live key with no routing to reach Entitle by.
+# On the v2 path that ordering is what keeps clientSecret off datadoghq.com.
 data: {}
 {{- else }}
 data:
