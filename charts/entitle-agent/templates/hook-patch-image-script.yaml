@@ -22,6 +22,10 @@ data:
     NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
     DEPLOYMENT_NAME="{{ include "entitle-agent.fullname" . }}"
     CONFIGURED_REPO="{{ $configuredRepo }}"
+    # Non-empty when the customer brought their own pull secret. The chart does not own
+    # that Secret (docker-login.yaml is not rendered at all in that case), so it must
+    # neither rewrite it nor treat the missing credential as an error.
+    OWN_PULL_SECRET="{{ include "entitle-agent.imagePullSecretNameValue" . }}"
     SECRET_NAME="{{ $secretRefName }}"
     SECRET_KEY="{{ include "entitle-agent.agentSecretKey" . }}"
 
@@ -53,26 +57,19 @@ data:
     # Proxy routing (v1 and later): the image and its pull secret move to the proxy host.
     if [ "$ROUTING_VER" -ge 1 ]; then
       if [ -z "$PLATFORM" ]; then
-        echo "ERROR: routing=$ROUTING but platform field is missing. Cannot determine proxy URL."
+        echo "ERROR: routing=$ROUTING but platform field is missing. Cannot determine the agent gateway URL."
         echo "The deployment will be left with the wrong image registry and will fail to pull images."
         exit 1
       fi
 
       # Calculate proxy host based on platform
-      if [[ "$PLATFORM" =~ ^dev- ]]; then
-        # dev-one, dev-two, dev-three -> agent-one.dev.entitle.io
-        DEV_NUM="${PLATFORM#dev-}"
-        PROXY_HOST="agent-${DEV_NUM}.dev.entitle.io"
-      else
-        # Standard: agent.{platform}.entitle.io
-        PROXY_HOST="agent.${PLATFORM}.entitle.io"
-      fi
+      {{- include "entitle-agent.runtimeProxyHost" . | nindent 6 }}
 
       # Extract the repository path from the configured repo (after the first /)
       REPO_PATH=$(echo "$CONFIGURED_REPO" | sed 's|^[^/]*/||')
       PROXY_IMAGE="${PROXY_HOST}/${REPO_PATH}"
 
-      echo "Patching deployment to use proxy image: $PROXY_IMAGE"
+      echo "Patching deployment to use agent gateway image: $PROXY_IMAGE"
 
       # Get current image tag from deployment
       CURRENT_IMAGE=$(kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}')
@@ -95,8 +92,14 @@ data:
       # The extract-pull-secret hook already created the secret, but it's keyed
       # to the upstream registry. We need to re-key it to the proxy host.
       IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
-      if [ -n "$IMAGE_CREDS" ]; then
-        echo "Re-keying docker-login secret for proxy host: $PROXY_HOST"
+      if [ -n "$OWN_PULL_SECRET" ]; then
+        # imagePullSecret.name is set, so the chart never created a docker-login Secret and
+        # has nothing it may rewrite. Patching a customer-owned Secret would be wrong, and
+        # patching the one that was never rendered fails the hook under `set -e`.
+        echo "NOTE: pull secret '$OWN_PULL_SECRET' is customer-managed; not modifying it."
+        echo "      It must contain an entry for $PROXY_HOST or the agent image cannot be pulled."
+      elif [ -n "$IMAGE_CREDS" ]; then
+        echo "Re-keying docker-login secret for agent gateway: $PROXY_HOST"
 
         # Decode the imageCredentials to get the auth object
         DECODED_CREDS=$(echo "$IMAGE_CREDS" | base64 -d)
@@ -123,7 +126,7 @@ data:
           exit 1
         fi
 
-        echo "Building docker-login secret from clientSecret for proxy host: $PROXY_HOST"
+        echo "Building docker-login secret from clientSecret for agent gateway: $PROXY_HOST"
 
         # proxy-auth is the magic username the proxy's auth sidecar swaps for the real credential.
         NEW_CREDS=$(jq -n \
@@ -138,9 +141,11 @@ data:
 
         echo "Pull secret built from clientSecret successfully."
       else
-        # routing=v1 with no imageCredentials: the deployment was just re-pointed at the
-        # proxy host but the pull secret is still empty, so the pod would sit in
-        # ImagePullBackOff. Fail loudly instead of reporting success.
+        # routing=v1, the chart owns the pull secret, and the token carries nothing to put
+        # in it: the deployment was just re-pointed at the proxy host but the pull secret is
+        # still empty, so the pod would sit in ImagePullBackOff. Fail loudly instead of
+        # reporting success. Reachable only when OWN_PULL_SECRET is empty — a customer-managed
+        # pull secret is handled by the first branch and is not an error.
         echo "ERROR: routing=$ROUTING but the token has no imageCredentials. Cannot build the pull secret."
         exit 1
       fi

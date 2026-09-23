@@ -491,6 +491,20 @@ ROUTING_VER=$(printf '%s' "${ROUTING#v}" | grep -E '^[0-9]+$' || true)
 ROUTING_VER=${ROUTING_VER:-0}
 {{- end -}}
 
+{{/* entitleHost's bash twin, for the same reason runtimeRoutingVersion exists: on the
+     agent.secretRef path the platform is only known once a Job has read the Secret.
+     Expects $PLATFORM, sets $PROXY_HOST — must stay in step with entitle-agent.proxyUrl. */}}
+{{- define "entitle-agent.runtimeProxyHost" -}}
+if [[ "$PLATFORM" =~ ^dev- ]]; then
+  # dev-one, dev-two, dev-three -> agent-one.dev.entitle.io
+  DEV_NUM="${PLATFORM#dev-}"
+  PROXY_HOST="agent-${DEV_NUM}.dev.entitle.io"
+else
+  # Standard: agent.{platform}.entitle.io
+  PROXY_HOST="agent.${PLATFORM}.entitle.io"
+fi
+{{- end -}}
+
 {{/* Generates proxy URL from platform value
      Standard: http://agent.{platform}.entitle.io:8080
      Dev:      http://agent-{num}.dev.entitle.io:8080 (for dev-one, dev-two, dev-three)
