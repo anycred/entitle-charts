@@ -10,12 +10,13 @@
 # unknown and both resources are created empty as pre-install hooks. hook-extract-job.yaml
 # fills whichever one the token's routing version calls for; the other stays empty and
 # contributes nothing through its optional envFrom.
-{{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
 {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
 {{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
 {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
 {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
-{{- if or (and (ge $ver 1) (lt $ver 2) $proxyUrl) $isRuntimeSecretRef }}
+{{- /* datadogForwardMode, not its parts — the envFrom ref that reads this ConfigMap is
+       gated on the same value, so the resource and the ref cannot disagree. */ -}}
+{{- if or (include "entitle-agent.datadogForwardMode" .) $isRuntimeSecretRef }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

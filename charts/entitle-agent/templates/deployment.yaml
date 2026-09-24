@@ -54,7 +54,10 @@ spec:
           # the secretRef path learns the version only at runtime; an absent source is skipped.
           - configMapRef:
               name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
-              optional: true
+              # Required when this ConfigMap carries the routing. Its absence leaks nothing —
+              # the api-key is the real Datadog key on v1 — but it silently unproxies the
+              # telemetry a v1 customer deployed the gateway to route.
+              optional: {{ if include "entitle-agent.datadogForwardMode" . }}false{{ else }}true{{ end }}
           - secretRef:
               name: {{ include "entitle-agent.fullname" . }}-datadog-routing
               # Required when this Secret carries the routing: DD_API_KEY below is then the

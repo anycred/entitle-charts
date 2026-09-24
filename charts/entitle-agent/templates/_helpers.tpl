@@ -342,6 +342,17 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
+{{/* datadogReverseMode's v1 counterpart: non-empty when the Datadog agent forwards through
+     the gateway with DD_PROXY_*, which needs a URL to forward to. Gates both the ConfigMap
+     that carries those vars and the envFrom ref that reads it, for the same reason. */}}
+{{- define "entitle-agent.datadogForwardMode" -}}
+  {{- $proxyUrl := include "entitle-agent.proxyUrl" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
+  {{- if and (ge $ver 1) (lt $ver 2) $proxyUrl -}}
+    {{- "true" -}}
+  {{- end -}}
+{{- end -}}
+
 {{/* Returns the name of a Datadog container whose envFrom cannot reach the routing Secret,
      under v2 its only source. Checks only the three containers this chart wires — the
      subchart's others default to an empty envFrom and are not ours to route. */}}
