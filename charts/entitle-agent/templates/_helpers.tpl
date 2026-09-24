@@ -15,6 +15,16 @@ ghcr.io/anycred/entitle-agent
 gcr.io/datadoghq/agent
 {{- end -}}
 
+{{/* "true" for the default agent repository and its two variants. The proxy serves all three
+     under pathPrefix /v2/anycred/, so they get the same host rewrite. A private mirror does not. */}}
+{{- define "entitle-agent.agentRepoIsEntitleOwned" -}}
+  {{- $default := include "entitle-agent.defaultAgentRepository" . -}}
+  {{- $repo := .Values.agent.image.repository -}}
+  {{- if or (eq $repo $default) (eq $repo (printf "%s-qa" $default)) (eq $repo (printf "%s-development" $default)) -}}
+    {{- "true" -}}
+  {{- end -}}
+{{- end -}}
+
 {{/*
 =============================================================================
 Safe accessors for fields introduced in v2.0.0 — prevents nil pointer errors
@@ -311,9 +321,65 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
-{{/* Resolves datadogApiKey: explicit value > extract from agent.token */}}
+{{/* Non-empty when the Datadog agent talks to the proxy as an origin server: routing v2
+     always does, older tokens never do. Single source of truth — datadogApiKey must agree,
+     or the agent gets reverse URLs while still holding the real Datadog key.
+
+     The host is part of the predicate, not just the version and the secret, because this
+     value decides both halves of reverse mode: datadogApiKey sends the clientSecret as the
+     Datadog API key, and datadog-routing-secret.yaml points DD_*_URL at the host that
+     recognises it. A token with no platform yields no host and so no routing Secret, while
+     a version-only predicate would still hand out the credential — and envFrom over a
+     missing Secret is optional by design, so the agent would start with Datadog's default
+     endpoint and send the clientSecret to datadoghq.com. Gate both on one value and that
+     split cannot open; entitle-agent.validateRequiredCredentials rejects the token outright. */}}
+{{- define "entitle-agent.datadogReverseMode" -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
+  {{- $host := include "entitle-agent.entitleHost" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
+  {{- if and (ge $ver 2) $clientSecret $host -}}
+    {{- "true" -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* datadogReverseMode's v1 counterpart: non-empty when the Datadog agent forwards through
+     the gateway with DD_PROXY_*, which needs a URL to forward to. Gates both the ConfigMap
+     that carries those vars and the envFrom ref that reads it, for the same reason. */}}
+{{- define "entitle-agent.datadogForwardMode" -}}
+  {{- $proxyUrl := include "entitle-agent.proxyUrl" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
+  {{- if and (ge $ver 1) (lt $ver 2) $proxyUrl -}}
+    {{- "true" -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Returns the name of a Datadog container whose envFrom cannot reach the routing Secret,
+     under v2 its only source. Checks only the three containers this chart wires — the
+     subchart's others default to an empty envFrom and are not ours to route. */}}
+{{- define "entitle-agent.unroutableDatadogContainer" -}}
+  {{- $routingSecret := printf "%s-datadog-routing" (include "entitle-agent.fullname" .) -}}
+  {{- $containers := dig "agents" "containers" dict .Values.datadog -}}
+  {{- $offender := "" -}}
+  {{- range $name := list "agent" "processAgent" "traceAgent" -}}
+    {{- $hasSecret := false -}}
+    {{- range (dig $name "envFrom" list $containers) -}}
+      {{- if eq (dig "secretRef" "name" "" .) $routingSecret -}}
+        {{- $hasSecret = true -}}
+      {{- end -}}
+    {{- end -}}
+    {{- if and (not $hasSecret) (not $offender) -}}
+      {{- $offender = $name -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $offender -}}
+{{- end -}}
+
+{{/* Resolves datadogApiKey: reverse mode sends the client secret > explicit value > agent.token */}}
 {{- define "entitle-agent.datadogApiKey" -}}
-  {{- if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
+  {{- if include "entitle-agent.datadogReverseMode" . -}}
+    {{- $clientSecret -}}
+  {{- else if and .Values.datadog.datadog.apiKey (ne .Values.datadog.datadog.apiKey "") -}}
     {{- .Values.datadog.datadog.apiKey -}}
   {{- else -}}
     {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "datadogApiKey") -}}
@@ -348,9 +414,20 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
   {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
   {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
   {{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- if not $isRuntimeSecretRef -}}
+    {{- /* Checked before the pull secret: on v2 the clientSecret is also the pull
+           secret's password, so without it every other credential is moot. */ -}}
+    {{- if and (ge $ver 2) (not (include "entitle-agent.extractedClientSecret" . | trim)) -}}
+      {{- fail (include "entitle-agent.missingClientSecretMessage" .) -}}
+    {{- end -}}
+    {{- /* No platform means no host — nothing the agent sends has an Entitle
+           destination. Fail on the missing field, not on its downstream effects. */ -}}
+    {{- if and (ge $ver 2) (not (include "entitle-agent.entitleHost" . | trim)) -}}
+      {{- fail (include "entitle-agent.missingPlatformMessage" .) -}}
+    {{- end -}}
     {{- if not $imagePullSecretName -}}
-      {{- if not (include "entitle-agent.imageCredentials" . | trim) -}}
+      {{- if not (include "entitle-agent.dockerConfigJson" . | trim) -}}
         {{- fail (include "entitle-agent.missingImageCredentialsMessage" .) -}}
       {{- end -}}
     {{- end -}}
@@ -358,8 +435,35 @@ hook-extract-job.yaml Job resolves and patches the credentials at runtime, so we
       {{- if not (include "entitle-agent.datadogApiKey" . | trim) -}}
         {{- fail (include "entitle-agent.missingDatadogApiKeyMessage" .) -}}
       {{- end -}}
+      {{- if and (include "entitle-agent.unroutableDatadogContainer" .) (ge $ver 2) -}}
+        {{- fail (include "entitle-agent.staleDatadogRoutingRefMessage" .) -}}
+      {{- end -}}
     {{- end -}}
   {{- end -}}
+{{- end -}}
+
+{{/* Failure message for a routing-v2 token with no resolvable clientSecret. */}}
+{{- define "entitle-agent.missingClientSecretMessage" -}}
+entitle-agent: this agent token is incomplete and cannot be installed — it is missing a credential the agent needs to connect to Entitle.
+For assistance, see https://docs.beyondtrust.com/entitle/docs/entitle-agent or contact BeyondTrust Support.
+{{- end -}}
+
+{{/* Failure message for a routing-v2 token with no platform, and so no host to reach. */}}
+{{- define "entitle-agent.missingPlatformMessage" -}}
+entitle-agent: this agent token is incomplete and cannot be installed — it is missing the field that says which Entitle environment the agent belongs to, so there is nowhere to send the agent's traffic.
+Issue a new token from Entitle (Org Settings) and re-run the install with it: --set agent.token=<TOKEN>
+For assistance, see https://docs.beyondtrust.com/entitle/docs/entitle-agent or contact BeyondTrust Support.
+{{- end -}}
+
+{{/* Failure message when a Datadog container's envFrom cannot reach the routing Secret,
+     which under v2 holds its only DD_*_URL vars. */}}
+{{- define "entitle-agent.staleDatadogRoutingRefMessage" -}}
+entitle-agent: this upgrade would leave monitoring broken, so it was stopped before making any change.
+The Datadog container '{{ include "entitle-agent.unroutableDatadogContainer" . }}' would start without the settings it needs to send data to Entitle, and would stop reporting without reporting an error.
+This is almost always caused by `helm upgrade --reuse-values`, which reuses your previous configuration instead of taking the new one from this chart version. Re-run the upgrade without it, adding back any values you set yourself with --set or -f:
+  helm upgrade entitle-agent entitle/entitle-agent -n <namespace> --set agent.token=<TOKEN>
+If you set datadog.agents.containers.*.envFrom in your own values, keep its secretRef for {{ include "entitle-agent.fullname" . }}-datadog-routing.
+Need help? Contact Entitle support. Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
 {{/* Failure message for an unresolvable imageCredentials. */}}
@@ -370,7 +474,7 @@ Provide it in one of these ways:
   1. Issue a new token from Entitle (Org Settings), then pass it: --set agent.token=<TOKEN>
   2. Pass the credentials explicitly: --set imageCredentials=<base64-dockerconfigjson>
   3. Reference a pre-existing image pull Secret: --set imagePullSecret.name=<secret-name>
-Upgrading an existing release? Add --reuse-values to keep the values from your previous install.
+Upgrading an existing release? Add --reuse-values to keep the values from your previous install (except when switching to a v2 token — see the README).
 Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- end -}}
 
@@ -396,6 +500,44 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "platform") -}}
 {{- end -}}
 
+{{/* Extracts the client secret from the token — its only source. It is never a value:
+     it must not be settable from the installation prompt or a --set path. Only v2 tokens carry it. */}}
+{{- define "entitle-agent.extractedClientSecret" -}}
+  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "clientSecret") -}}
+{{- end -}}
+
+{{/* The token's routing version as a number, for ordered comparisons.
+     Compare with ge/lt against an integer rather than eq/ne against "vN": a gate written
+     as `eq "v2"` stops firing the day v3 ships, and string order puts "v10" before "v2".
+       {{- if ge $ver 2 }}  v2 and later
+       {{- if lt $ver 2 }}  v1 and earlier
+     Absent, empty or unparseable routing yields 0 — the same as v0, i.e. no routing. */}}
+{{- define "entitle-agent.routingVersion" -}}
+  {{- include "entitle-agent.extractedRouting" . | trim | trimPrefix "v" | atoi -}}
+{{- end -}}
+
+{{/* routingVersion's bash twin: the hook Jobs' path (agent.secretRef, no token) has no token
+     in .Values, so the version can only be parsed once the Job has read the Secret. Expects
+     $ROUTING, sets $ROUTING_VER — 0 when absent or unparseable, same as routingVersion. */}}
+{{- define "entitle-agent.runtimeRoutingVersion" -}}
+ROUTING_VER=$(printf '%s' "${ROUTING#v}" | grep -E '^[0-9]+$' || true)
+ROUTING_VER=${ROUTING_VER:-0}
+{{- end -}}
+
+{{/* entitleHost's bash twin, for the same reason runtimeRoutingVersion exists: on the
+     agent.secretRef path the platform is only known once a Job has read the Secret.
+     Expects $PLATFORM, sets $PROXY_HOST — must stay in step with entitle-agent.proxyUrl. */}}
+{{- define "entitle-agent.runtimeProxyHost" -}}
+if [[ "$PLATFORM" =~ ^dev- ]]; then
+  # dev-one, dev-two, dev-three -> agent-one.dev.entitle.io
+  DEV_NUM="${PLATFORM#dev-}"
+  PROXY_HOST="agent-${DEV_NUM}.dev.entitle.io"
+else
+  # Standard: agent.{platform}.entitle.io
+  PROXY_HOST="agent.${PLATFORM}.entitle.io"
+fi
+{{- end -}}
+
 {{/* Generates proxy URL from platform value
      Standard: http://agent.{platform}.entitle.io:8080
      Dev:      http://agent-{num}.dev.entitle.io:8080 (for dev-one, dev-two, dev-three)
@@ -412,11 +554,16 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   {{- end -}}
 {{- end -}}
 
+{{/* entitle-agent.proxyUrl with no scheme or port — agent.{platform}.entitle.io */}}
+{{- define "entitle-agent.entitleHost" -}}
+  {{- include "entitle-agent.proxyUrl" . | trimPrefix "http://" | trimPrefix "https://" | trimSuffix ":8080" -}}
+{{- end -}}
+
 {{/* Full Datadog logs sidecar image reference including tag.
      Selected by the token's "routing" field:
        v0 / field absent  -> `datadog.image.repository`:`datadog.image.tag` as-is
        v1 (or higher)     -> pull through the proxy ONLY if using the default repository.
-                             Rewrite to `<proxyHost>/monitoring-agent/<basename>:<tag>` where
+                             Rewrite to `<entitleHost>/monitoring-agent/<basename>:<tag>` where
                              basename is the last "/"-separated segment of the
                              configured repository. Uses the same proxy host as
                              the agent image (agent.{platform}.entitle.io, from
@@ -428,11 +575,11 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
 {{- define "entitle-agent.datadogImage" -}}
   {{- $repository := include "entitle-agent.datadogImageRepositoryValue" . -}}
   {{- $tag := include "entitle-agent.datadogImageTagValue" . -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $defaultDatadogRepo := include "entitle-agent.defaultDatadogRepository" . -}}
   {{- $isDefault := eq $repository $defaultDatadogRepo -}}
-  {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
+  {{- if and (ge $ver 1) $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
     {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
     {{- printf "%s/monitoring-agent/%s:%s" $host $basename $tag -}}
@@ -452,15 +599,12 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
                              If a custom (non-default) repository is explicitly configured,
                              use it as-is to allow direct pulls from private mirrors. */}}
 {{- define "entitle-agent.agentImageRepository" -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $repository := .Values.agent.image.repository -}}
-  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
-  {{- $isDefault := eq $repository $defaultAgentRepo -}}
-  {{- if and $routing (ne $routing "v0") $proxyUrl $isDefault -}}
-    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+  {{- if and (ge $ver 1) $proxyUrl (include "entitle-agent.agentRepoIsEntitleOwned" .) -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
-    {{- printf "%s/%s" $host $path -}}
+    {{- printf "%s/%s" (include "entitle-agent.entitleHost" .) $path -}}
   {{- else -}}
     {{- $repository -}}
   {{- end -}}
@@ -473,21 +617,27 @@ Docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
      username/password are unchanged — the proxy forwards the basic-auth /token call to
      the real upstream). Only rewrite if the agent repository is using the default.
      If agent is custom, pass imageCredentials through unchanged to allow direct pulls
-     from private mirrors. */}}
+     from private mirrors.
+
+     Routing v2 carries no imageCredentials: build the entry as base64("proxy-auth:<clientSecret>")
+     instead. "proxy-auth" is the magic username the proxy's auth sidecar matches on; it validates
+     the secret and swaps in the real registry credential, so the cluster never holds one. */}}
 {{- define "entitle-agent.dockerConfigJson" -}}
   {{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
-  {{- $routing := include "entitle-agent.extractedRouting" . | trim -}}
+  {{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-  {{- $defaultAgentRepo := include "entitle-agent.defaultAgentRepository" . -}}
-  {{- $agentIsDefault := eq .Values.agent.image.repository $defaultAgentRepo -}}
-  {{- if and $imageCreds $routing (ne $routing "v0") $proxyUrl $agentIsDefault -}}
-    {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
+  {{- $host := include "entitle-agent.entitleHost" . -}}
+  {{- $clientSecret := include "entitle-agent.extractedClientSecret" . | trim -}}
+  {{- $viaProxy := and (ge $ver 1) $proxyUrl (include "entitle-agent.agentRepoIsEntitleOwned" .) -}}
+  {{- if and $viaProxy $imageCreds -}}
     {{- $decoded := $imageCreds | b64dec | fromJson -}}
     {{- $newAuths := dict -}}
     {{- range $k, $v := $decoded.auths -}}
       {{- $_ := set $newAuths $host $v -}}
     {{- end -}}
     {{- dict "auths" $newAuths | toJson | b64enc -}}
+  {{- else if and $viaProxy $clientSecret (ge $ver 2) -}}
+    {{- dict "auths" (dict $host (dict "auth" (printf "proxy-auth:%s" $clientSecret | b64enc))) | toJson | b64enc -}}
   {{- else -}}
     {{- $imageCreds -}}
   {{- end -}}
@@ -548,7 +698,7 @@ healthcheck init container so validators run with identical configuration.
 - name: ENTITLE_PROXY_URL
   value: {{ include "entitle-agent.proxyUrl" . | quote }}
 - name: ENTITLE_MAX_ROUTING_VERSION
-  value: "v1"
+  value: "v2"
 - name: HELM_AGENT_VERSION
   value: {{ .Values.agent.agent_version | default "default" | quote }}
 - name: HELM_AGENT_IMAGE_TAG

@@ -1,8 +1,22 @@
 # ConfigMap with proxy env vars — shared by DaemonSet (via envFrom) and Sidecar (via envFrom)
 # URL is dynamically generated from token: http://agent.{platform}.entitle.io:8080
-{{- $routing := include "entitle-agent.extractedRouting" . -}}
+# Routing v1 only. Nothing here is sensitive: the agent tunnels to Datadog through the
+# proxy and keeps the real Datadog API key locally, so the URL carries no credential.
+# Routing v2 is served by datadog-routing-secret.yaml instead — exactly one of the two
+# holds data for any given token. Keeping this name unchanged from v2.11.0 is what
+# lets --reuse-values upgrades of a v1 release keep resolving their envFrom.
+#
+# SecretRef path: the token is not readable at render time, so the routing version is
+# unknown and both resources are created empty as pre-install hooks. hook-extract-job.yaml
+# fills whichever one the token's routing version calls for; the other stays empty and
+# contributes nothing through its optional envFrom.
 {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
-{{- if and $routing (ne $routing "v0") $proxyUrl }}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- $isRuntimeSecretRef := and $secretRefName (not $hasToken) -}}
+{{- /* datadogForwardMode, not its parts — the envFrom ref that reads this ConfigMap is
+       gated on the same value, so the resource and the ref cannot disagree. */ -}}
+{{- if or (include "entitle-agent.datadogForwardMode" .) $isRuntimeSecretRef }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,10 +24,27 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "entitle-agent.labels" . | nindent 4 }}
+  {{- if $isRuntimeSecretRef }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    # Recreated empty on every upgrade so a token that moved v1 -> v2 cannot leave the
+    # previous shape's vars behind — kubectl patch --type merge only adds keys.
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- end }}
+{{- if $isRuntimeSecretRef }}
+# Populated by hook-extract-job.yaml when the token turns out to be routing v1.
+# Same ordering invariant as datadog-routing-secret.yaml: the Job fills this ConfigMap
+# before it patches the api-key, because Helm does not undo hook side-effects and a
+# failure between the two writes leaves a live key with no routing to reach Entitle by.
+# On the v2 path that ordering is what keeps clientSecret off datadoghq.com.
+data: {}
+{{- else }}
 data:
   # DD-specific proxy vars — only affects Datadog agent's own outbound traffic
   # (metrics, logs, APM → datadoghq.com). Internal checks (kubelet, kube API)
   # use standard HTTP libs (requests/urllib3) which are NOT proxied.
   DD_PROXY_HTTP: {{ $proxyUrl | quote }}
   DD_PROXY_HTTPS: {{ $proxyUrl | quote }}
+{{- end }}
 {{- end }}

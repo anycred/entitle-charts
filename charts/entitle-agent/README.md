@@ -38,7 +38,20 @@ To resolve, pick whichever fits:
 
   `--reuse-values` carries over every value from your previous release, so credentials you set
   before are preserved without re-specifying them.
+
+  > **Exception — moving onto a newly issued token.** Run that one upgrade *without*
+  > `--reuse-values`, re-passing any values you set yourself with `--set`/`-f`. The flag
+  > would carry over the previous release's monitoring configuration, which a newly issued
+  > token cannot use. If you run it with the flag and `datadog.enabled=true`, the chart
+  > stops the upgrade before changing anything and prints what to do. All other upgrades
+  > are unaffected.
+
 - **Pass the values explicitly:** `--set imageCredentials=<base64-dockerconfigjson>` and/or `--set datadog.datadog.apiKey=<datadog-api-key>` (or `--set imagePullSecret.name=<existing-secret>` to use your own registry secret; `--set datadog.enabled=false` to disable Datadog).
+
+**Rolling back.** A release on a newly issued token needs chart 2.13.0 or later. Going below
+that fails with `imageCredentials is missing… likely an older token`, which reads backwards
+here — the token is newer than the chart, so re-issuing it will not help. Stay on 2.13.0 or
+later, or contact Entitle support for a token the older chart accepts.
 
 ## Installation Scenarios
 
@@ -107,6 +120,10 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
 ```
 
 ## Pre-Install
+
+Allow outbound traffic from the agent's pods to `agent.<platform>.entitle.io` on **:8080 and
+:443**. Older agents used :8080 alone; :443 carries monitoring for current agents, so opening
+only :8080 leaves monitoring silently unable to report.
 
 ```shell
 helm repo add datadog https://helm.datadoghq.com
