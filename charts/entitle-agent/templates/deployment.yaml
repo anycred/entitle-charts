@@ -50,13 +50,17 @@ spec:
         imagePullPolicy: Always
         restartPolicy: Always
         envFrom:
-          # Only one of the two exists: ConfigMap for v1 tokens, Secret for v2.
+          # At most one holds data: ConfigMap for v1, Secret for v2. Both are listed because
+          # the secretRef path learns the version only at runtime; an absent source is skipped.
           - configMapRef:
               name: {{ include "entitle-agent.fullname" . }}-datadog-proxy
               optional: true
           - secretRef:
               name: {{ include "entitle-agent.fullname" . }}-datadog-routing
-              optional: true
+              # Required when this Secret carries the routing: DD_API_KEY below is then the
+              # clientSecret, and with no DD_*_URL it would go to datadoghq.com. Same gate as
+              # the Secret's own, so the two cannot drift.
+              optional: {{ if include "entitle-agent.datadogReverseMode" . }}false{{ else }}true{{ end }}
         env:
           - name: DD_API_KEY
             valueFrom:
