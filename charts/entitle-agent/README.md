@@ -48,9 +48,9 @@ To resolve, pick whichever fits:
 
 - **Pass the values explicitly:** `--set imageCredentials=<base64-dockerconfigjson>` and/or `--set datadog.datadog.apiKey=<datadog-api-key>` (or `--set imagePullSecret.name=<existing-secret>` to use your own registry secret; `--set datadog.enabled=false` to disable Datadog).
 
-**Rolling back.** A release on a newly issued token needs chart 2.12.0 or later. Going below
+**Rolling back.** A release on a newly issued token needs chart 2.13.0 or later. Going below
 that fails with `imageCredentials is missing… likely an older token`, which reads backwards
-here — the token is newer than the chart, so re-issuing it will not help. Stay on 2.12.0 or
+here — the token is newer than the chart, so re-issuing it will not help. Stay on 2.13.0 or
 later, or contact Entitle support for a token the older chart accepts.
 
 ## Installation Scenarios
