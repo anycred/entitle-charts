@@ -61,7 +61,12 @@ icon: https://app.entitle.io/favicon.ico
 # imagePullSecret.name no longer fails the patch-image hook.
 # v2 tokens need chart >=2.13.0: 2.12.0 routes Datadog through the gateway but still has no
 # clientSecret branch for the pull secret, so a release on a v2 token cannot go back below 2.13.0.
-version: 2.13.1
+# v2.14.0 (ICH-5296): set the Datadog company/company_id tags from the token's companyName and
+# companyId, so installs no longer need ORG_NAME — DD_EXTRA_TAGS on the sidecar, a pod-level
+# ad.datadoghq.com/tags annotation in DaemonSet mode. A key already set in datadog.datadog.tags
+# (or that annotation in podAnnotations) wins. Not on the agent.secretRef path (token unreadable at
+# render time).
+version: 2.14.0
 appVersion: "1.0.0"
 
 dependencies:

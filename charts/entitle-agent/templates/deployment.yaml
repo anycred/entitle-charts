@@ -24,6 +24,12 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
         checksum/datadog-config: {{ include (print $.Template.BasePath "/datadog-configmap.yaml") . | sha256sum }}
         ad.datadoghq.com/{{ include "entitle-agent.fullname" . }}.logs: '[{"source": "{{ include "entitle-agent.fullname" . }}"}]'
+        {{- /* The DaemonSet agent reads pod tags from here (job pods copy them); the sidecar gets DD_EXTRA_TAGS.
+               A podAnnotations entry of the same name is the user's own and wins. */}}
+        {{- $inferredTags := include "entitle-agent.inferredDatadogTags" . | fromJson }}
+        {{- if and .Values.datadog.enabled $inferredTags (not (hasKey (.Values.podAnnotations | default dict) "ad.datadoghq.com/tags")) }}
+        ad.datadoghq.com/tags: {{ toJson $inferredTags | quote }}
+        {{- end }}
       {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -72,6 +78,11 @@ spec:
                 key: api-key
           - name: DD_TAGS
             value: {{.Values.datadog.datadog.tags | quote}}
+          {{- with include "entitle-agent.inferredDatadogExtraTags" . }}
+          # company/company_id from the token, merged with DD_TAGS by the agent
+          - name: DD_EXTRA_TAGS
+            value: {{ . | quote }}
+          {{- end }}
           - name: DD_HOSTNAME
             valueFrom:
               fieldRef:

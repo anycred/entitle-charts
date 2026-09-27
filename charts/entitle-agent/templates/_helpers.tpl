@@ -395,6 +395,45 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
+{{/* Datadog tags inferred from agent.token, so installs no longer need ORG_NAME:
+     company from companyName (Mothership) and company_id from companyId (main-api).
+     Explicit value > agent.token, as for the credentials above: a key already set with a
+     non-empty value in datadog.datadog.tags (any case, list or space/comma string) is left out.
+     Values keep only the characters Datadog keeps in a tag: the sidecar's DD_EXTRA_TAGS splits
+     on any whitespace and the logs agent comma-joins annotation tags, so either would break
+     "Acme, Inc." apart. Returns a JSON map — "{}" for an older token, or on the agent.secretRef
+     path, where the token is not readable at render time. */}}
+{{- define "entitle-agent.inferredDatadogTags" -}}
+  {{- $token := include "entitle-agent.getToken" . -}}
+  {{- $explicit := dict -}}
+  {{- range $entry := toStrings (dig "datadog" "tags" list .Values.datadog) -}}
+    {{- range $tag := regexSplit `[\s,]+` $entry -1 -}}
+      {{- $parts := splitn ":" 2 (lower $tag) -}}
+      {{- if $parts._1 | trim -}}
+        {{- $_ := set $explicit ($parts._0 | trim) true -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $tags := dict -}}
+  {{- range $key, $field := dict "company" "companyName" "company_id" "companyId" -}}
+    {{- $raw := include "entitle-agent.extractTokenField" (dict "token" $token "field" $field) -}}
+    {{- $value := regexReplaceAll `[^\p{L}\p{N}_.:/-]+` $raw "_" | trimAll "_" -}}
+    {{- if and $value (not (hasKey $explicit $key)) -}}
+      {{- $_ := set $tags $key $value -}}
+    {{- end -}}
+  {{- end -}}
+  {{- toJson $tags -}}
+{{- end -}}
+
+{{/* inferredDatadogTags as DD_EXTRA_TAGS' space-separated key:value list; empty when there is none. */}}
+{{- define "entitle-agent.inferredDatadogExtraTags" -}}
+  {{- $pairs := list -}}
+  {{- range $key, $value := include "entitle-agent.inferredDatadogTags" . | fromJson -}}
+    {{- $pairs = append $pairs (printf "%s:%s" $key $value) -}}
+  {{- end -}}
+  {{- join " " $pairs -}}
+{{- end -}}
+
 {{/*
 Validates that the credentials needed for a working deployment can be resolved at
 render time, and fails helm install/upgrade with an actionable message if not.
