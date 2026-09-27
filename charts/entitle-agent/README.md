@@ -69,6 +69,8 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
 
 > `kmsType` defaults to `kubernetes_secret_manager` — only set it if you need a different KMS (e.g., `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`).
 
+> The agent identifies your company from its token, so there is no organization name to pass. `datadog.datadog.tags` stays available for tags of your own.
+
 ### Scenario 2 — Pre-existing Secret (GitOps / External Secrets)
 
 Reference a pre-existing Kubernetes Secret. The chart reads the secret at deploy time using Helm `lookup`, extracts `imageCredentials` and `datadogApiKey`, and creates the docker-login and Datadog secrets as regular chart resources — fully tracked by ArgoCD.
@@ -143,17 +145,14 @@ Kubernetes Secret Manager is the default secret manager even if your K8s cluster
 Helm Chart installation:
 
 - `agent.token` is given to you by Entitle (imageCredentials is auto-extracted from the token)
-- Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 - You can replace namespace `entitle` with your own namespace, but it's highly discouraged
 
 ```shell
 export TOKEN=<TOKEN_FROM_ENTITLE>
-export ORG_NAME=<YOUR ORGANIZATION NAME>
 export NAMESPACE=entitle
 
 helm upgrade --install entitle-agent entitle/entitle-agent \
     --set kmsType="kubernetes_secret_manager" \
-    --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set agent.token="${TOKEN}" \
     -n ${NAMESPACE} --create-namespace
 ```
@@ -223,7 +222,6 @@ In the following: If AutoPilot is enabled, replace --zone with --region
 ### C. [GCP Chart Installation](https://helm.sh/docs/helm/helm_upgrade/)
 
 - `agent.token` is given to you by Entitle
-- Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 
 - If you have installed Entitle's Terraform IaC, you need to set up proxy(after [Setting up IAP-tunnel](#setting-up-iap-tunnel)):
 
@@ -240,7 +238,6 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   --set platform.gcp.serviceAccount="<ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME>" \
   --set platform.gcp.projectId="<PROJECT_ID>" \
   --set agent.token="<TOKEN>" \
-  --set datadog.datadog.tags={company:<YOUR_ORG_NAME>} \
   -n "<NAMESPACE>" --create-namespace
 ```
 
@@ -254,7 +251,6 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   --set platform.gcp.serviceAccount="${ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME}" \
   --set platform.gcp.projectId="${PROJECT_ID}" \
   --set agent.token="${TOKEN}" \
-  --set datadog.datadog.tags={company:${ORGANIZATION_NAME}} \
   -n "${NAMESPACE}" --create-namespace
 ```
 
@@ -377,19 +373,16 @@ Eventually, you can install our Helm chart:
 
 - `agent.token` is given to you by Entitle
 - Replace `platform.aws.iamRole` with Entitle's AWS IAM Role you've created
-- Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 - You can replace namespace `entitle` with your own namespace, but it's highly discouraged
 - If you want to use hashicorp vault, set kmsType to `hashicorp_vault`
 
 ```shell
 export TOKEN=<TOKEN_FROM_ENTITLE>
-export ORG_NAME=<YOUR ORGANIZATION NAME>
 export NAMESPACE=entitle
 
 helm upgrade --install entitle-agent entitle/entitle-agent \
     --set platform.mode="aws" \
     --set kmsType="aws_secret_manager" \
-    --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set platform.aws.iamRole="arn:aws:iam::${ACCOUNT_ID}:role/entitle-agent-role" \
     --set agent.token="${TOKEN}" \
     -n ${NAMESPACE} --create-namespace
@@ -521,7 +514,6 @@ If you don't have a managed identity created and assigned to your pod, perform t
 11. helm install
     ```shell
     export TOKEN=<TOKEN_FROM_ENTITLE>
-    export ORG_NAME=<YOUR ORGANIZATION NAME>
     ```
 
 - If you want to use hashicorp vault, set kmsType to `hashicorp_vault`
@@ -529,7 +521,6 @@ If you don't have a managed identity created and assigned to your pod, perform t
     helm upgrade --install entitle-agent entitle/entitle-agent \
     --set platform.mode="azure" \
     --set kmsType="azure_secret_manager" \
-    --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set datadog.datadog.kubelet.tlsVerify=false \
     --set datadog.datadog.kubelet.host.valueFrom.fieldRef.fieldPath="spec.nodeName" \
     --set datadog.datadog.kubelet.hostCAPath="/etc/kubernetes/certs/kubeletserver.crt" \
