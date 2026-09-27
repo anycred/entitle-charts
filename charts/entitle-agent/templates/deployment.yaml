@@ -78,6 +78,10 @@ spec:
                 fieldPath: spec.nodeName
           - name: DD_LOGS_ENABLED
             value: "true"
+          - name: DD_APM_ENABLED
+            value: {{ dig "apmEnabled" false .Values.datadog | quote }}
+          - name: DD_REMOTE_CONFIGURATION_ENABLED
+            value: {{ dig "remoteConfigurationEnabled" false .Values.datadog | quote }}
           - name: DD_LOG_LEVEL
             value: "debug"
           # Disables Kubernetes metrics collection (DO NOT REMOVE)
