@@ -137,6 +137,11 @@ agent:
 # Set datadog.enabled=false to disable it entirely.
 
 datadog:
+  # ICH-5600 — the Datadog image starts both by default, and nothing uses them, so they
+  # only poll datadoghq.com on a timer and fail behind the gateway.
+  apmEnabled: false
+  remoteConfigurationEnabled: false
+
   # Default: lightweight logs-only sidecar. Set enabled=true to run the full
   # Datadog Helm subchart (DaemonSet — host metrics, APM, processes) instead.
   enabled: false           # false = sidecar (see sidecarLogs); true = full Datadog subchart DaemonSet
