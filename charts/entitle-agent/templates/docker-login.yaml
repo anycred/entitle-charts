@@ -10,9 +10,8 @@ Docker registry login secret.
 {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . -}}
 {{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
 {{- if not $imagePullSecretName -}}
-{{- $imageCreds := include "entitle-agent.imageCredentials" . -}}
 {{- $dockerConfig := include "entitle-agent.dockerConfigJson" . -}}
-{{- if or $imageCreds $secretRefName }}
+{{- if or $dockerConfig $secretRefName }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -27,7 +26,7 @@ metadata:
   {{- end }}
 type: kubernetes.io/dockerconfigjson
 data:
-  {{- if $imageCreds }}
+  {{- if $dockerConfig }}
   .dockerconfigjson: {{ $dockerConfig | quote }}
   {{- else }}
   .dockerconfigjson: eyJhdXRocyI6e319

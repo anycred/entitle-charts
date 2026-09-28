@@ -15,6 +15,12 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "patch"]
+  # configmaps: hook-extract-job.yaml fills the datadog-proxy ConfigMap for routing v1
+  # tokens. No "create" anywhere — every resource the hooks touch is rendered first as
+  # an empty placeholder, so patch is enough.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "patch"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "patch"]
