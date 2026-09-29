@@ -61,7 +61,7 @@ icon: https://app.entitle.io/favicon.ico
 # imagePullSecret.name no longer fails the patch-image hook.
 # v2.13.2 (ICH-5609): routing v2 also points the Datadog Event Platform intakes (DBM, NDM,
 # NDM config, NetFlow, SNMP traps, netpath, container lifecycle/image, SBOM, generic
-# resources, synthetics, data streams) at the agent gateway — they ignore DD_DD_URL and
+# resources, synthetics, data streams) and the agent's own telemetry at the agent gateway — they ignore DD_DD_URL and
 # were going to datadoghq.com with the clientSecret. The sidecar also turns off the agent's
 # connectivity diagnostics (datadog.inventoriesDiagnosticsEnabled), which probe intakes
 # that cannot be routed, such as LLM obs.

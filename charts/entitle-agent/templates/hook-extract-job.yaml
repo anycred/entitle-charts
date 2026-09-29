@@ -134,7 +134,7 @@ spec:
                   DD_NETWORK_DEVICES_METADATA_LOGS_DD_URL:$logs,DD_NETWORK_DEVICES_NETFLOW_FORWARDER_LOGS_DD_URL:$logs,DD_NETWORK_DEVICES_SNMP_TRAPS_FORWARDER_LOGS_DD_URL:$logs,
                   DD_NETWORK_PATH_FORWARDER_LOGS_DD_URL:$logs,DD_CONTAINER_LIFECYCLE_LOGS_DD_URL:$logs,DD_CONTAINER_IMAGE_LOGS_DD_URL:$logs,DD_SBOM_LOGS_DD_URL:$logs,
                   DD_GENRESOURCES_LOGS_DD_URL:$logs,DD_SYNTHETICS_FORWARDER_LOGS_DD_URL:$logs,DD_DATA_STREAMS_FORWARDER_LOGS_DD_URL:$logs,
-                  DD_NETWORK_DEVICES_CONFIG_MANAGEMENT_FORWARDER_LOGS_DD_URL:$logs}}')"
+                  DD_NETWORK_DEVICES_CONFIG_MANAGEMENT_FORWARDER_LOGS_DD_URL:$logs,DD_AGENT_TELEMETRY_LOGS_DD_URL:$logs}}')"
           elif [ "$ROUTING_VER" -ge 1 ]; then
             echo "Populating datadog-proxy configmap for agent gateway: $PROXY_HOST"
             kubectl patch configmap "{{ include "entitle-agent.fullname" . }}-datadog-proxy" \
