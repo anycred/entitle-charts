@@ -107,6 +107,13 @@ agent:
     name: ""                              # Name of the existing Secret
     key: "ENTITLE_JSON_CONFIGURATION"     # Key within the Secret (override if your secret uses a different key)
 
+  # -- platform: The Entitle environment your token belongs to (e.g. "eu", "us", "ca").
+  # Only needed with agent.secretRef when egress is limited to the agent gateway: the chart
+  # cannot read the Secret at render time, so this value picks the gateway
+  # (agent.<platform>.entitle.io) the hook Jobs pull their image through.
+  # Must match the token — the install fails if it does not. Leave empty otherwise.
+  platform: ""
+
   image:
     # IMPORTANT: This default must match entitle-agent.defaultAgentRepository in templates/_helpers.tpl.
     repository: ghcr.io/anycred/entitle-agent  # Docker image repository. Override to mirror into a private registry (e.g. myreg.example.com/mirrors/entitle-agent).
@@ -129,6 +136,23 @@ agent:
 
   kafka:
     bootstrapServers: ""   # Kafka public bootstrap servers (optional)
+
+# =============================================================================
+# agent.secretRef Hook Jobs
+# =============================================================================
+
+hook:
+  # Image for the Jobs that read agent.secretRef and fill the pull/Datadog secrets
+  # (kubectl + jq + bash). Public, so it pulls without credentials.
+  # With agent.platform set, the default repository is pulled through the agent gateway
+  # (agent.<platform>.entitle.io/anycred/entitle-agent-hook) — no egress to ghcr.io needed.
+  # Override `repository` to mirror into a private registry (e.g. myreg.example.com/mirrors/entitle-agent-hook);
+  # a custom repository is never rewritten. imagePullSecret.name, if set, is used for the pull.
+  # IMPORTANT: The repository default must match entitle-agent.defaultHookRepository in templates/_helpers.tpl.
+  # IMPORTANT: The tag default must match the fallback in entitle-agent.hookImageTagValue in templates/_helpers.tpl.
+  image:
+    repository: ghcr.io/anycred/entitle-agent-hook
+    tag: "1.0.0"           # Pinned; CI publishes this tag from images/entitle-agent-hook
 
 # =============================================================================
 # Datadog Configuration

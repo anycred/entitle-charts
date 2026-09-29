@@ -15,6 +15,10 @@ ghcr.io/anycred/entitle-agent
 gcr.io/datadoghq/agent
 {{- end -}}
 
+{{- define "entitle-agent.defaultHookRepository" -}}
+ghcr.io/anycred/entitle-agent-hook
+{{- end -}}
+
 {{/* "true" for the default agent repository and its two variants. The proxy serves all three
      under pathPrefix /v2/anycred/, so they get the same host rewrite. A private mirror does not. */}}
 {{- define "entitle-agent.agentRepoIsEntitleOwned" -}}
@@ -79,6 +83,38 @@ Use this instead of direct .Values.datadog.image.tag access.
 {{- .Values.datadog.image.tag | default "latest" -}}
 {{- else -}}
 {{- "latest" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessors for hook.image.repository/tag — fall back to the chart defaults when the
+hook block is absent (introduced in v2.14.0; missing on --reuse-values upgrades).
+*/}}
+{{- define "entitle-agent.hookImageRepositoryValue" -}}
+{{- if and (hasKey .Values "hook") (hasKey .Values.hook "image") -}}
+{{- .Values.hook.image.repository | default (include "entitle-agent.defaultHookRepository" .) -}}
+{{- else -}}
+{{- include "entitle-agent.defaultHookRepository" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* IMPORTANT: The fallback must match hook.image.tag in values.yaml. */}}
+{{- define "entitle-agent.hookImageTagValue" -}}
+{{- if and (hasKey .Values "hook") (hasKey .Values.hook "image") -}}
+{{- .Values.hook.image.tag | default "1.0.0" -}}
+{{- else -}}
+{{- "1.0.0" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Safe accessor for agent.platform — returns empty string if not set (introduced in v2.14.0).
+*/}}
+{{- define "entitle-agent.agentPlatformValue" -}}
+{{- if hasKey .Values.agent "platform" -}}
+{{- .Values.agent.platform | default "" -}}
+{{- else -}}
+{{- "" -}}
 {{- end -}}
 {{- end -}}
 
@@ -526,7 +562,7 @@ ROUTING_VER=${ROUTING_VER:-0}
 
 {{/* entitleHost's bash twin, for the same reason runtimeRoutingVersion exists: on the
      agent.secretRef path the platform is only known once a Job has read the Secret.
-     Expects $PLATFORM, sets $PROXY_HOST — must stay in step with entitle-agent.proxyUrl. */}}
+     Expects $PLATFORM, sets $PROXY_HOST — must stay in step with entitle-agent.hostForPlatform. */}}
 {{- define "entitle-agent.runtimeProxyHost" -}}
 if [[ "$PLATFORM" =~ ^dev- ]]; then
   # dev-one, dev-two, dev-three -> agent-one.dev.entitle.io
@@ -545,12 +581,17 @@ fi
 {{- define "entitle-agent.proxyUrl" -}}
   {{- $platform := include "entitle-agent.extractedPlatform" . | trim -}}
   {{- if $platform -}}
-    {{- if hasPrefix "dev-" $platform -}}
-      {{- $devNum := trimPrefix "dev-" $platform -}}
-      {{- printf "http://agent-%s.dev.entitle.io:8080" $devNum -}}
-    {{- else -}}
-      {{- printf "http://agent.%s.entitle.io:8080" $platform -}}
-    {{- end -}}
+    {{- printf "http://%s:8080" (include "entitle-agent.hostForPlatform" $platform) -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Agent gateway host for a platform string — shared by proxyUrl (token's platform) and
+     hookImage (agent.platform). Usage: include "entitle-agent.hostForPlatform" "us" */}}
+{{- define "entitle-agent.hostForPlatform" -}}
+  {{- if hasPrefix "dev-" . -}}
+    {{- printf "agent-%s.dev.entitle.io" (trimPrefix "dev-" .) -}}
+  {{- else -}}
+    {{- printf "agent.%s.entitle.io" . -}}
   {{- end -}}
 {{- end -}}
 
@@ -607,6 +648,26 @@ fi
     {{- printf "%s/%s" (include "entitle-agent.entitleHost" .) $path -}}
   {{- else -}}
     {{- $repository -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Image for the agent.secretRef hook Jobs. Those Jobs run before the token has been read,
+     so the proxy host cannot come from the token; it comes from agent.platform instead.
+       agent.platform empty -> `hook.image.repository`:`hook.image.tag` as-is (direct ghcr.io)
+       agent.platform set   -> pull the default repository through the agent gateway:
+                               <hostForPlatform>/anycred/entitle-agent-hook:<tag>, served by the
+                               proxy's /v2/anycred/ route. The image is public, so the pull needs
+                               no credentials.
+     A custom repository is used as-is to allow direct pulls from private mirrors. */}}
+{{- define "entitle-agent.hookImage" -}}
+  {{- $repository := include "entitle-agent.hookImageRepositoryValue" . -}}
+  {{- $tag := include "entitle-agent.hookImageTagValue" . -}}
+  {{- $platform := include "entitle-agent.agentPlatformValue" . | trim -}}
+  {{- if and $platform (eq $repository (include "entitle-agent.defaultHookRepository" .)) -}}
+    {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
+    {{- printf "%s/%s:%s" (include "entitle-agent.hostForPlatform" $platform) $path $tag -}}
+  {{- else -}}
+    {{- printf "%s:%s" $repository $tag -}}
   {{- end -}}
 {{- end -}}
 

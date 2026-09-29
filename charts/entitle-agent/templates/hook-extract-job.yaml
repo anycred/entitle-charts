@@ -28,9 +28,11 @@ spec:
     spec:
       serviceAccountName: {{ include "entitle-agent.fullname" . }}-hook
       restartPolicy: Never
+      imagePullSecrets:
+        - name: {{ include "entitle-agent.imagePullSecretName" . }}
       containers:
       - name: extract
-        image: bitnami/kubectl:latest
+        image: {{ include "entitle-agent.hookImage" . }}
         command: ["/bin/bash", "-c"]
         args:
         - |
@@ -44,7 +46,7 @@ spec:
           TOKEN_JSON=$(cat "/secret/{{ include "entitle-agent.agentSecretKey" . }}")
 
           # Unwrap BASE64_CONFIGURATION to get the raw token blob.
-          # Use jq (present in bitnami/kubectl) so parsing is robust to JSON
+          # Use jq (present in the hook image) so parsing is robust to JSON
           # whitespace, newlines and key ordering — a plain sed regex is not.
           B64_CONFIG=$(echo "$TOKEN_JSON" | jq -r '.BASE64_CONFIGURATION // empty')
 
@@ -78,6 +80,15 @@ spec:
               exit 1
             fi
             {{- include "entitle-agent.runtimeProxyHost" . | nindent 12 }}
+          fi
+
+          # agent.platform picked the gateway this Job's image was pulled through; the
+          # agent image and Datadog go to the token's platform, so the two must agree.
+          VALUES_PLATFORM="{{ include "entitle-agent.agentPlatformValue" . | trim }}"
+          if [ -n "$VALUES_PLATFORM" ] && [ -n "$PLATFORM" ] && [ "$VALUES_PLATFORM" != "$PLATFORM" ]; then
+            echo "ERROR: agent.platform=$VALUES_PLATFORM does not match the token's platform ($PLATFORM)."
+            echo "Re-run the install with --set agent.platform=$PLATFORM"
+            exit 1
           fi
 
           if [ "$ROUTING_VER" -ge 2 ] && [ -z "$CLIENT_SECRET" ]; then

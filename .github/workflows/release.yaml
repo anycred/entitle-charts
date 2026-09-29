@@ -3,6 +3,10 @@
 # =============================================================================
 # Triggered on push to master (after PR merge) or manual dispatch.
 #
+# Publishes the agent.secretRef hook image (images/entitle-agent-hook) at the tag set in
+# hook.image.tag, before the chart that references it is released. Tags are immutable:
+# an already-published tag is never overwritten — bump hook.image.tag to ship a change.
+#
 # Auto-bumps the chart patch version if the current version was already released
 # (prevents silent failures when developers forget to bump Chart.yaml).
 # Then runs chart-releaser to publish to GitHub Pages.
@@ -16,7 +20,60 @@ on:
       - master
 
 jobs:
+  hook-image:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Resolve hook image ref
+        id: ref
+        run: |
+          REPO=$(yq '.hook.image.repository' charts/entitle-agent/values.yaml)
+          TAG=$(yq '.hook.image.tag' charts/entitle-agent/values.yaml)
+          echo "image=${REPO}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip if tag already published
+        id: exists
+        env:
+          IMAGE: ${{ steps.ref.outputs.image }}
+        run: |
+          if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "${IMAGE} already published — not overwriting"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up QEMU
+        if: steps.exists.outputs.exists != 'true'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Buildx
+        if: steps.exists.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build and push
+        if: steps.exists.outputs.exists != 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: images/entitle-agent-hook
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.ref.outputs.image }}
+
   release:
+    needs: hook-image
     runs-on: ubuntu-latest
 
     permissions:

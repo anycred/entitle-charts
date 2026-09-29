@@ -61,7 +61,11 @@ icon: https://app.entitle.io/favicon.ico
 # imagePullSecret.name no longer fails the patch-image hook.
 # v2 tokens need chart >=2.13.0: 2.12.0 routes Datadog through the gateway but still has no
 # clientSecret branch for the pull secret, so a release on a v2 token cannot go back below 2.13.0.
-version: 2.13.1
+# v2.14.0 (DOPS-1169): the agent.secretRef hook Jobs no longer pull bitnami/kubectl:latest from
+# Docker Hub. They use the pinned, public ghcr.io/anycred/entitle-agent-hook (hook.image.*), pulled
+# through agent.<platform>.entitle.io when the new agent.platform value is set, so a secretRef
+# install works with egress limited to the agent gateway.
+version: 2.14.0
 appVersion: "1.0.0"
 
 dependencies:
