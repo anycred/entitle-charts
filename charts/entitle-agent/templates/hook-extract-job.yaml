@@ -129,9 +129,10 @@ spec:
                 --arg url "$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)" \
                 --arg logs "$(printf '%s:443' "$PROXY_HOST" | base64 -w0)" \
                 --arg http "$(printf 'true' | base64 -w0)" \
-                --arg ep "{{ include "entitle-agent.datadogEventPlatformUrlVars" . }}" \
-                '{data:({DD_DD_URL:$url,DD_PROCESS_CONFIG_PROCESS_DD_URL:$url,DD_LOGS_CONFIG_LOGS_DD_URL:$logs,DD_LOGS_CONFIG_USE_HTTP:$http}
-                  + ($ep | split(" ") | map({(.): $logs}) | add))}')"
+                '{data:{DD_DD_URL:$url,DD_PROCESS_CONFIG_PROCESS_DD_URL:$url,DD_LOGS_CONFIG_LOGS_DD_URL:$logs,DD_LOGS_CONFIG_USE_HTTP:$http,
+                  DD_DATABASE_MONITORING_METRICS_LOGS_DD_URL:$logs,DD_DATABASE_MONITORING_SAMPLES_LOGS_DD_URL:$logs,DD_DATABASE_MONITORING_ACTIVITY_LOGS_DD_URL:$logs,
+                  DD_NETWORK_DEVICES_METADATA_LOGS_DD_URL:$logs,DD_NETWORK_DEVICES_NETFLOW_FORWARDER_LOGS_DD_URL:$logs,DD_NETWORK_DEVICES_SNMP_TRAPS_FORWARDER_LOGS_DD_URL:$logs,
+                  DD_NETWORK_PATH_FORWARDER_LOGS_DD_URL:$logs,DD_CONTAINER_LIFECYCLE_LOGS_DD_URL:$logs,DD_CONTAINER_IMAGE_LOGS_DD_URL:$logs,DD_SBOM_LOGS_DD_URL:$logs}}')"
           elif [ "$ROUTING_VER" -ge 1 ]; then
             echo "Populating datadog-proxy configmap for agent gateway: $PROXY_HOST"
             kubectl patch configmap "{{ include "entitle-agent.fullname" . }}-datadog-proxy" \
