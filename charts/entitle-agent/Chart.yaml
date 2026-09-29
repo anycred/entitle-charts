@@ -62,7 +62,9 @@ icon: https://app.entitle.io/favicon.ico
 # v2.13.2 (ICH-5609): routing v2 also points the Datadog Event Platform intakes (DBM, NDM,
 # NDM config, NetFlow, SNMP traps, netpath, container lifecycle/image, SBOM, generic
 # resources, synthetics, data streams) at the agent gateway — they ignore DD_DD_URL and
-# were going to datadoghq.com with the clientSecret.
+# were going to datadoghq.com with the clientSecret. The sidecar also turns off the agent's
+# connectivity diagnostics (datadog.inventoriesDiagnosticsEnabled), which probe intakes
+# that cannot be routed, such as LLM obs.
 # v2 tokens need chart >=2.13.0: 2.12.0 routes Datadog through the gateway but still has no
 # clientSecret branch for the pull secret, so a release on a v2 token cannot go back below 2.13.0.
 version: 2.13.2
