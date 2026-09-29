@@ -141,7 +141,7 @@ datadog:
   # only poll datadoghq.com on a timer and fail behind the gateway.
   apmEnabled: false
   remoteConfigurationEnabled: false
-  # ICH-5609 — the agent's connectivity diagnostics probe every Datadog intake, used or
+  # The agent's connectivity diagnostics probe every Datadog intake, used or
   # not, every ~10 minutes. Some (LLM obs) have no URL setting and cannot be routed
   # through the gateway, so on routing v2 they would go to datadoghq.com directly.
   inventoriesDiagnosticsEnabled: false
