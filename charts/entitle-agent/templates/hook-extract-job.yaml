@@ -129,7 +129,9 @@ spec:
                 --arg url "$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)" \
                 --arg logs "$(printf '%s:443' "$PROXY_HOST" | base64 -w0)" \
                 --arg http "$(printf 'true' | base64 -w0)" \
-                '{data:{DD_DD_URL:$url,DD_PROCESS_CONFIG_PROCESS_DD_URL:$url,DD_LOGS_CONFIG_LOGS_DD_URL:$logs,DD_LOGS_CONFIG_USE_HTTP:$http}}')"
+                --arg ep "{{ include "entitle-agent.datadogEventPlatformUrlVars" . }}" \
+                '{data:({DD_DD_URL:$url,DD_PROCESS_CONFIG_PROCESS_DD_URL:$url,DD_LOGS_CONFIG_LOGS_DD_URL:$logs,DD_LOGS_CONFIG_USE_HTTP:$http}
+                  + ($ep | split(" ") | map({(.): $logs}) | add))}')"
           elif [ "$ROUTING_VER" -ge 1 ]; then
             echo "Populating datadog-proxy configmap for agent gateway: $PROXY_HOST"
             kubectl patch configmap "{{ include "entitle-agent.fullname" . }}-datadog-proxy" \

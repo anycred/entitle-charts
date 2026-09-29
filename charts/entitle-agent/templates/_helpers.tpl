@@ -342,6 +342,14 @@ Fullname with image tag
   {{- end -}}
 {{- end -}}
 
+{{/* Routing v2: the Event Platform intakes (ndm-intake, dbm-metrics-intake, ...). Each has
+     its own host and ignores DD_DD_URL and the logs URL, so any not listed here goes to
+     datadoghq.com with the clientSecret. Space-separated so the hook Job can loop over it
+     too; each gets the same host:443 value as DD_LOGS_CONFIG_LOGS_DD_URL. */}}
+{{- define "entitle-agent.datadogEventPlatformUrlVars" -}}
+DD_DATABASE_MONITORING_METRICS_LOGS_DD_URL DD_DATABASE_MONITORING_SAMPLES_LOGS_DD_URL DD_DATABASE_MONITORING_ACTIVITY_LOGS_DD_URL DD_NETWORK_DEVICES_METADATA_LOGS_DD_URL DD_NETWORK_DEVICES_NETFLOW_FORWARDER_LOGS_DD_URL DD_NETWORK_DEVICES_SNMP_TRAPS_FORWARDER_LOGS_DD_URL DD_NETWORK_PATH_FORWARDER_LOGS_DD_URL DD_CONTAINER_LIFECYCLE_LOGS_DD_URL DD_CONTAINER_IMAGE_LOGS_DD_URL DD_SBOM_LOGS_DD_URL
+{{- end -}}
+
 {{/* datadogReverseMode's v1 counterpart: non-empty when the Datadog agent forwards through
      the gateway with DD_PROXY_*, which needs a URL to forward to. Gates both the ConfigMap
      that carries those vars and the envFrom ref that reads it, for the same reason. */}}
