@@ -193,8 +193,8 @@
         "platform": {
           "type": "string",
           "default": "",
-          "pattern": "^[a-z0-9-]*$",
-          "description": "Entitle environment the token belongs to (e.g. eu, us, ca). Used with agent.secretRef to pull the hook image through agent.<platform>.entitle.io. Must match the token."
+          "enum": ["", "eu", "us", "ca", "qa", "dev-one", "dev-two", "dev-three"],
+          "description": "Entitle environment the token belongs to — the X in the agent.X.entitle.io domain your firewall allows (eu, us, ca). Used with agent.secretRef to pull the hook image through that gateway. Leave empty otherwise."
         },
         "replicas": {
           "type": "integer",

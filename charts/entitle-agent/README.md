@@ -119,9 +119,15 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   -n entitle --create-namespace
 ```
 
-`agent.platform` must match the domain you allowed (`agent.us.entitle.io` → `us`) and your token; the
-install stops if it doesn't. To mirror the image into your own registry instead, set
-`hook.image.repository` (and `imagePullSecret.name` if the mirror needs credentials).
+`agent.platform` is one of `eu`, `us`, `ca`, and must match the domain you allowed
+(`agent.us.entitle.io` → `us`) and your token. To mirror the image into your own registry instead,
+set `hook.image.repository` (and `imagePullSecret.name` if the mirror needs credentials).
+
+> **Troubleshooting:** if the install times out and the `entitle-agent-extract-pull-secret` pod is
+> in `ImagePullBackOff`, the hook image can't be pulled: `agent.platform` doesn't match the
+> `agent.<platform>.entitle.io` domain your firewall allows, or your nodes (not only the pods) can't
+> reach it on `:443`. Check with
+> `kubectl -n <namespace> describe pod -l job-name=entitle-agent-extract-pull-secret`.
 
 ### Scenario 3 — Explicit Override (Backwards-Compatible)
 

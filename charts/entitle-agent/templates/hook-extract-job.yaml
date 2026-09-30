@@ -87,13 +87,14 @@ spec:
             {{- include "entitle-agent.runtimeProxyHost" . | nindent 12 }}
           fi
 
-          # agent.platform picked the gateway this Job's image was pulled through; the
-          # agent image and Datadog go to the token's platform, so the two must agree.
+          # agent.platform only picks the gateway this Job's image is pulled through; the agent
+          # image and Datadog follow the token's platform. A mismatch that got this far pulled
+          # fine, so nothing breaks — warn instead of failing a working install. (A mismatch
+          # behind a gateway-only firewall never reaches this line: the pull itself fails.)
           VALUES_PLATFORM="{{ include "entitle-agent.agentPlatformValue" . | trim }}"
           if [ -n "$VALUES_PLATFORM" ] && [ -n "$PLATFORM" ] && [ "$VALUES_PLATFORM" != "$PLATFORM" ]; then
-            echo "ERROR: agent.platform=$VALUES_PLATFORM does not match the token's platform ($PLATFORM)."
-            echo "Re-run the install with --set agent.platform=$PLATFORM"
-            exit 1
+            echo "WARNING: agent.platform=$VALUES_PLATFORM does not match the token's platform ($PLATFORM)."
+            echo "Set --set agent.platform=$PLATFORM, or the next install behind a gateway-only firewall will fail to pull this Job's image."
           fi
 
           if [ "$ROUTING_VER" -ge 2 ] && [ -z "$CLIENT_SECRET" ]; then

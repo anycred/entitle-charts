@@ -111,7 +111,9 @@ agent:
   # Only needed with agent.secretRef when egress is limited to the agent gateway: the chart
   # cannot read the Secret at render time, so this value picks the gateway
   # (agent.<platform>.entitle.io) the hook Jobs pull their image through.
-  # Must match the token — the install fails if it does not. Leave empty otherwise.
+  # One of: eu, us, ca (the X in the agent.X.entitle.io domain you allowed). Must match the
+  # token; with a mismatch behind a gateway-only firewall the hook Job cannot pull its image.
+  # Leave empty otherwise.
   platform: ""
 
   image:
