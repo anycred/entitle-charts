@@ -110,7 +110,7 @@ agent:
   # -- platform: The Entitle environment your token belongs to (e.g. "eu", "us", "ca").
   # Only needed with agent.secretRef when egress is limited to the agent gateway: the chart
   # cannot read the Secret at render time, so this value picks the gateway
-  # (agent.<platform>.entitle.io) the hook Jobs and the Datadog sidecar pull their images through.
+  # (agent.<platform>.entitle.io) the hook Jobs pull their image through.
   # Must match the token — the install fails if it does not. Leave empty otherwise.
   platform: ""
 

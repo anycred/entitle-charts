@@ -66,8 +66,9 @@ icon: https://app.entitle.io/favicon.ico
 # pulled through agent.<platform>.entitle.io when the new agent.platform value is set (needs the
 # gateway allowlist from gitops DOPS-1171), so a secretRef install works with egress limited to the
 # agent gateway. The hook scripts parse JSON with python3 instead of jq and run as UID 1001.
-# agent.platform also points the Datadog logs sidecar at the gateway on secretRef installs, which
-# previously stayed on gcr.io and kept the pod from starting behind a gateway-only firewall.
+# The patch-image hook also re-points the Datadog logs sidecar at the gateway for routing v1/v2
+# tokens (v0 stays on gcr.io). It used to stay on gcr.io on secretRef installs, which kept the pod
+# from starting behind a gateway-only firewall.
 version: 2.13.2
 appVersion: "1.0.0"
 

@@ -29,6 +29,9 @@ data:
     OWN_PULL_SECRET="{{ include "entitle-agent.imagePullSecretNameValue" . }}"
     SECRET_NAME="{{ $secretRefName }}"
     SECRET_KEY="{{ include "entitle-agent.agentSecretKey" . }}"
+    # Non-empty when the Datadog logs sidecar is rendered from the default gcr.io repository —
+    # the only case its image is ours to re-point. A custom repository is a customer mirror.
+    DATADOG_SIDECAR="{{ if and (not .Values.datadog.enabled) .Values.datadog.sidecarLogs (eq (include "entitle-agent.datadogImageRepositoryValue" .) (include "entitle-agent.defaultDatadogRepository" .)) }}true{{ end }}"
 
     echo "Reading token from secret $SECRET_NAME"
 
@@ -81,13 +84,25 @@ data:
       echo "Current image: $CURRENT_IMAGE"
       echo "New image: $NEW_IMAGE"
 
-      # Patch the deployment - both init container and main container
+      INIT_PATCH="{\"name\":\"${DEPLOYMENT_NAME}-healthcheck\",\"image\":\"$NEW_IMAGE\"}"
+      if [ -n "$DATADOG_SIDECAR" ]; then
+        # The rewrite entitle-agent.datadogImage does on the token path: the gateway maps the
+        # monitoring-agent alias back to gcr.io/datadoghq. v0 never gets here and keeps gcr.io.
+        DD_IMAGE=$(kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.initContainers[?(@.name=="datadog-agent")].image}')
+        DD_NEW_IMAGE="${PROXY_HOST}/monitoring-agent/agent:${DD_IMAGE##*:}"
+        echo "Datadog sidecar: $DD_IMAGE -> $DD_NEW_IMAGE"
+        # Listed first: the patch reorders initContainers to match, and the sidecar must keep
+        # starting before the healthcheck, as deployment.yaml renders it.
+        INIT_PATCH="{\"name\":\"datadog-agent\",\"image\":\"$DD_NEW_IMAGE\"},${INIT_PATCH}"
+      fi
+
+      # Patch the deployment - init containers (healthcheck, Datadog sidecar) and main container
       kubectl patch deployment "$DEPLOYMENT_NAME" \
         -n "$NAMESPACE" \
         --type strategic \
-        -p "{\"spec\":{\"template\":{\"spec\":{\"initContainers\":[{\"name\":\"${DEPLOYMENT_NAME}-healthcheck\",\"image\":\"$NEW_IMAGE\"}],\"containers\":[{\"name\":\"$DEPLOYMENT_NAME\",\"image\":\"$NEW_IMAGE\"}]}}}}"
+        -p "{\"spec\":{\"template\":{\"spec\":{\"initContainers\":[${INIT_PATCH}],\"containers\":[{\"name\":\"$DEPLOYMENT_NAME\",\"image\":\"$NEW_IMAGE\"}]}}}}"
 
-      echo "Deployment patched successfully (init container + main container). Rolling update will commence."
+      echo "Deployment patched successfully. Rolling update will commence."
 
       # Also patch imagePullSecrets to use the proxy host
       # The extract-pull-secret hook already created the secret, but it's keyed
