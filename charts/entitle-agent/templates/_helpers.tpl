@@ -613,7 +613,9 @@ fi
                              alias namespace is mapped back to the real upstream
                              by the proxy.
                              If a custom (non-default) repository is explicitly configured,
-                             use it as-is to allow direct pulls from private mirrors. */}}
+                             use it as-is to allow direct pulls from private mirrors.
+     agent.secretRef (no token): the same rewrite when agent.platform is set, whatever the
+     token's routing — the platform is only set when egress is limited to the gateway. */}}
 {{- define "entitle-agent.datadogImage" -}}
   {{- $repository := include "entitle-agent.datadogImageRepositoryValue" . -}}
   {{- $tag := include "entitle-agent.datadogImageTagValue" . -}}
@@ -621,10 +623,16 @@ fi
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $defaultDatadogRepo := include "entitle-agent.defaultDatadogRepository" . -}}
   {{- $isDefault := eq $repository $defaultDatadogRepo -}}
+  {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
+  {{- /* agent.secretRef has no token at render time; agent.platform names the gateway instead,
+         same as entitle-agent.hookImage. The patch-image hook does not touch this container. */ -}}
+  {{- $runtimeSecretRef := and (include "entitle-agent.secretRefNameValue" .) (not (include "entitle-agent.getToken" .)) -}}
+  {{- $platform := include "entitle-agent.agentPlatformValue" . | trim -}}
   {{- if and (ge $ver 1) $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
-    {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
     {{- printf "%s/monitoring-agent/%s:%s" $host $basename $tag -}}
+  {{- else if and $runtimeSecretRef $platform $isDefault -}}
+    {{- printf "%s/monitoring-agent/%s:%s" (include "entitle-agent.hostForPlatform" $platform) $basename $tag -}}
   {{- else -}}
     {{- printf "%s:%s" $repository $tag -}}
   {{- end -}}
