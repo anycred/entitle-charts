@@ -82,6 +82,8 @@ spec:
             value: {{ dig "apmEnabled" false .Values.datadog | quote }}
           - name: DD_REMOTE_CONFIGURATION_ENABLED
             value: {{ dig "remoteConfigurationEnabled" false .Values.datadog | quote }}
+          - name: DD_INVENTORIES_DIAGNOSTICS_ENABLED
+            value: {{ dig "inventoriesDiagnosticsEnabled" false .Values.datadog | quote }}
           - name: DD_LOG_LEVEL
             value: "debug"
           # Disables Kubernetes metrics collection (DO NOT REMOVE)

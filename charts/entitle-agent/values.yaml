@@ -141,6 +141,10 @@ datadog:
   # only poll datadoghq.com on a timer and fail behind the gateway.
   apmEnabled: false
   remoteConfigurationEnabled: false
+  # The agent's connectivity diagnostics probe every Datadog intake, used or
+  # not, every ~10 minutes. Some (LLM obs) have no URL setting and cannot be routed
+  # through the gateway, so on routing v2 they would go to datadoghq.com directly.
+  inventoriesDiagnosticsEnabled: false
 
   # Default: lightweight logs-only sidecar. Set enabled=true to run the full
   # Datadog Helm subchart (DaemonSet — host metrics, APM, processes) instead.
