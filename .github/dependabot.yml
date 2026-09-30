@@ -4,9 +4,3 @@ updates:
   directory: "/"
   schedule:
     interval: "weekly"
-# Base image of the agent.secretRef hook image. A bump PR must also bump hook.image.tag
-# (values.yaml + entitle-agent.hookImageTagValue) or the release job won't publish it.
-- package-ecosystem: "docker"
-  directory: "/images/entitle-agent-hook"
-  schedule:
-    interval: "weekly"

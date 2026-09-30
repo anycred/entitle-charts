@@ -33,10 +33,15 @@ spec:
       containers:
       - name: extract
         image: {{ include "entitle-agent.hookImage" . }}
+        # The image defaults to root; the hooks need no privileges.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
         command: ["/bin/bash", "-c"]
         args:
         - |
           set -e
+          {{- include "entitle-agent.runtimeJsonHelpers" . | nindent 10 }}
 
           NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
@@ -46,9 +51,9 @@ spec:
           TOKEN_JSON=$(cat "/secret/{{ include "entitle-agent.agentSecretKey" . }}")
 
           # Unwrap BASE64_CONFIGURATION to get the raw token blob.
-          # Use jq (present in the hook image) so parsing is robust to JSON
+          # Parse with a real JSON parser (jget, python3) so it is robust to JSON
           # whitespace, newlines and key ordering — a plain sed regex is not.
-          B64_CONFIG=$(echo "$TOKEN_JSON" | jq -r '.BASE64_CONFIGURATION // empty')
+          B64_CONFIG=$(echo "$TOKEN_JSON" | jget BASE64_CONFIGURATION)
 
           if [ -z "$B64_CONFIG" ]; then
             echo "ERROR: Could not extract BASE64_CONFIGURATION from secret"
@@ -58,9 +63,9 @@ spec:
           # Decode to get the full token JSON
           FULL_TOKEN=$(echo "$B64_CONFIG" | base64 -d)
 
-          ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
-          PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
-          CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
+          ROUTING=$(echo "$FULL_TOKEN" | jget routing)
+          PLATFORM=$(echo "$FULL_TOKEN" | jget platform)
+          CLIENT_SECRET=$(echo "$FULL_TOKEN" | jget clientSecret)
           {{- include "entitle-agent.runtimeRoutingVersion" . | nindent 10 }}
 
           echo "Routing: $ROUTING"
@@ -100,7 +105,7 @@ spec:
           {{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
           {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . }}
           {{- if not (or $imagePullSecretName $hasImageCreds) }}
-          IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
+          IMAGE_CREDS=$(echo "$FULL_TOKEN" | jget imageCredentials)
 
           # Extract imageCredentials and patch the docker-login secret.
           # Note: The pull secret is initially keyed to the upstream registry host.
@@ -133,21 +138,25 @@ spec:
           if [ "$ROUTING_VER" -ge 2 ]; then
             echo "Populating datadog-routing secret for agent gateway: $PROXY_HOST"
             # host:port for logs, NOT a URL — a scheme makes the logs agent refuse to start.
+            DD_URL_B64=$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)
+            DD_LOGS_B64=$(printf '%s:443' "$PROXY_HOST" | base64 -w0)
+            DD_HTTP_B64=$(printf 'true' | base64 -w0)
             kubectl patch secret "{{ include "entitle-agent.fullname" . }}-datadog-routing" \
               -n "$NAMESPACE" \
               --type merge \
-              -p "$(jq -n \
-                --arg url "$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)" \
-                --arg logs "$(printf '%s:443' "$PROXY_HOST" | base64 -w0)" \
-                --arg http "$(printf 'true' | base64 -w0)" \
-                '{data:{DD_DD_URL:$url,DD_PROCESS_CONFIG_PROCESS_DD_URL:$url,DD_LOGS_CONFIG_LOGS_DD_URL:$logs,DD_LOGS_CONFIG_USE_HTTP:$http}}')"
+              -p "{\"data\":$(jobj \
+                DD_DD_URL="$DD_URL_B64" \
+                DD_PROCESS_CONFIG_PROCESS_DD_URL="$DD_URL_B64" \
+                DD_LOGS_CONFIG_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_LOGS_CONFIG_USE_HTTP="$DD_HTTP_B64")}"
           elif [ "$ROUTING_VER" -ge 1 ]; then
             echo "Populating datadog-proxy configmap for agent gateway: $PROXY_HOST"
             kubectl patch configmap "{{ include "entitle-agent.fullname" . }}-datadog-proxy" \
               -n "$NAMESPACE" \
               --type merge \
-              -p "$(jq -n --arg url "http://${PROXY_HOST}:8080" \
-                '{data:{DD_PROXY_HTTP:$url,DD_PROXY_HTTPS:$url}}')"
+              -p "{\"data\":$(jobj \
+                DD_PROXY_HTTP="http://${PROXY_HOST}:8080" \
+                DD_PROXY_HTTPS="http://${PROXY_HOST}:8080")}"
           else
             echo "Routing is v0 or absent (found: '$ROUTING'). Datadog talks to datadoghq.com directly."
           fi
@@ -158,7 +167,7 @@ spec:
           # swaps in the real Datadog key. Mirrors entitle-agent.datadogApiKey, which does
           # the same resolution on the render-time path. Last write in the Job: by now the
           # routing that keeps clientSecret off datadoghq.com is already in place.
-          DD_API_KEY=$(echo "$FULL_TOKEN" | jq -r '.datadogApiKey // empty')
+          DD_API_KEY=$(echo "$FULL_TOKEN" | jget datadogApiKey)
 
           if [ "$ROUTING_VER" -ge 2 ]; then
             DD_API_KEY="$CLIENT_SECRET"

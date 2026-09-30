@@ -107,8 +107,8 @@ The chart automatically extracts and creates:
 - `entitle-agent-docker-login` (image pull credentials)
 - `entitle-agent-datadog-secret` (Datadog API key)
 
-**Egress limited to the agent gateway?** The extraction runs in hook Jobs that use the public
-`ghcr.io/anycred/entitle-agent-hook` image. By default it is pulled from `ghcr.io`. If your
+**Egress limited to the agent gateway?** The extraction runs in hook Jobs that use Google's
+public `gcr.io/cloud-builders/kubectl` image. By default it is pulled from `gcr.io`. If your
 firewall only allows `agent.<platform>.entitle.io`, tell the chart your platform so the image is
 pulled through the gateway instead. The chart can't read it from the Secret before the hooks run.
 
@@ -586,8 +586,8 @@ The following table lists the configurable parameters of the Entitle-agent chart
 | `agent.secretRef.name`           | Name of existing Secret with agent configuration. When set, `agent.token` is ignored.                                                                            | `""`                              | `false`                           |
 | `agent.secretRef.key`            | Key within the Secret that holds the agent configuration JSON.                                                                                                   | `"ENTITLE_JSON_CONFIGURATION"`    | `false`                           |
 | `agent.platform`                 | Entitle environment of the token (`eu`, `us`, `ca`). With `agent.secretRef`, pulls the hook image through `agent.<platform>.entitle.io`. Must match the token.  | `""`                              | `true` if `agent.secretRef` with gateway-only egress |
-| `hook.image.repository`          | Image for the `agent.secretRef` hook Jobs. Override to use a private mirror (never rewritten to the gateway).                                                   | `"ghcr.io/anycred/entitle-agent-hook"` | `false`                      |
-| `hook.image.tag`                 | Tag for the hook image                                                                                                                                           | `"1.0.0"`                         | `false`                           |
+| `hook.image.repository`          | Image for the `agent.secretRef` hook Jobs (needs bash, kubectl, python3). Override to use a private mirror (never rewritten to the gateway).                   | `"gcr.io/cloud-builders/kubectl"` | `false`                           |
+| `hook.image.digest`              | Digest the hook image is pinned to (`sha256:...`)                                                                                                                | pinned in `values.yaml`           | `false`                           |
 | `agent.image.repository`         | Docker image repository                                                                                                                                          | `"ghcr.io/anycred/entitle-agent"` | `false`                           |
 | `agent.image.tag`                | Tag for docker image of agent                                                                                                                                    | `"latest"`                        | `false`                           |
 | `agent.replicas`                 | Number of agent pods                                                                                                                                             | `3`                               | `false`                           |

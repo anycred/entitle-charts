@@ -40,6 +40,10 @@ spec:
       containers:
       - name: patch-image
         image: {{ include "entitle-agent.hookImage" . }}
+        # The image defaults to root; the hooks need no privileges.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
         command: ["/bin/bash"]
         args: ["/scripts/patch-image.sh"]
         volumeMounts:

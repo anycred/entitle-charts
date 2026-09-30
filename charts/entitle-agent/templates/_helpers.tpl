@@ -16,7 +16,7 @@ gcr.io/datadoghq/agent
 {{- end -}}
 
 {{- define "entitle-agent.defaultHookRepository" -}}
-ghcr.io/anycred/entitle-agent-hook
+gcr.io/cloud-builders/kubectl
 {{- end -}}
 
 {{/* "true" for the default agent repository and its two variants. The proxy serves all three
@@ -87,7 +87,7 @@ Use this instead of direct .Values.datadog.image.tag access.
 {{- end -}}
 
 {{/*
-Safe accessors for hook.image.repository/tag — fall back to the chart defaults when the
+Safe accessors for hook.image.repository/digest — fall back to the chart defaults when the
 hook block is absent (introduced in v2.14.0; missing on --reuse-values upgrades).
 */}}
 {{- define "entitle-agent.hookImageRepositoryValue" -}}
@@ -98,12 +98,13 @@ hook block is absent (introduced in v2.14.0; missing on --reuse-values upgrades)
 {{- end -}}
 {{- end -}}
 
-{{/* IMPORTANT: The fallback must match hook.image.tag in values.yaml. */}}
-{{- define "entitle-agent.hookImageTagValue" -}}
+{{/* IMPORTANT: The fallback must match hook.image.digest in values.yaml. */}}
+{{- define "entitle-agent.hookImageDigestValue" -}}
+{{- $default := "sha256:1d98e03496df46ad55cb3e87f973506ccc0452deba8d9eb576e4f6fcb3a770ee" -}}
 {{- if and (hasKey .Values "hook") (hasKey .Values.hook "image") -}}
-{{- .Values.hook.image.tag | default "1.0.0" -}}
+{{- .Values.hook.image.digest | default $default -}}
 {{- else -}}
-{{- "1.0.0" -}}
+{{- $default -}}
 {{- end -}}
 {{- end -}}
 
@@ -653,22 +654,39 @@ fi
 
 {{/* Image for the agent.secretRef hook Jobs. Those Jobs run before the token has been read,
      so the proxy host cannot come from the token; it comes from agent.platform instead.
-       agent.platform empty -> `hook.image.repository`:`hook.image.tag` as-is (direct ghcr.io)
-       agent.platform set   -> pull the default repository through the agent gateway:
-                               <hostForPlatform>/anycred/entitle-agent-hook:<tag>, served by the
-                               proxy's /v2/anycred/ route. The image is public, so the pull needs
-                               no credentials.
+       agent.platform empty -> `hook.image.repository`@`hook.image.digest` as-is (direct gcr.io)
+       agent.platform set   -> pull the default repository through the agent gateway, like the
+                               Datadog image: <hostForPlatform>/cloud-builders/kubectl@<digest>,
+                               served by the gateway's gcr.io allowlist (gitops DOPS-1171). The
+                               image is public, so the pull needs no credentials.
      A custom repository is used as-is to allow direct pulls from private mirrors. */}}
 {{- define "entitle-agent.hookImage" -}}
   {{- $repository := include "entitle-agent.hookImageRepositoryValue" . -}}
-  {{- $tag := include "entitle-agent.hookImageTagValue" . -}}
+  {{- $digest := include "entitle-agent.hookImageDigestValue" . -}}
   {{- $platform := include "entitle-agent.agentPlatformValue" . | trim -}}
   {{- if and $platform (eq $repository (include "entitle-agent.defaultHookRepository" .)) -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
-    {{- printf "%s/%s:%s" (include "entitle-agent.hostForPlatform" $platform) $path $tag -}}
+    {{- printf "%s/%s@%s" (include "entitle-agent.hostForPlatform" $platform) $path $digest -}}
   {{- else -}}
-    {{- printf "%s:%s" $repository $tag -}}
+    {{- printf "%s@%s" $repository $digest -}}
   {{- end -}}
+{{- end -}}
+
+{{/* JSON helpers for the hook scripts, which run on the hook image: it has python3 but no jq.
+       jget <path>        stdin JSON -> value at dotted <path>; "" if absent/null/false (jq -r '.p // empty').
+                          Strings print raw, objects/arrays as compact JSON.
+       jobj k=v [k=v...]  a JSON object of string values (jq -n --arg). */}}
+{{- define "entitle-agent.runtimeJsonHelpers" -}}
+jget() {
+  python3 -c 'import json,sys
+v=json.load(sys.stdin)
+for k in sys.argv[1].split("."):
+    v=v.get(k) if isinstance(v,dict) else None
+print("" if v in (None,False) else v if isinstance(v,str) else json.dumps(v,separators=(",",":")))' "$1"
+}
+jobj() {
+  python3 -c 'import json,sys; print(json.dumps(dict(a.split("=",1) for a in sys.argv[1:]),separators=(",",":")))' "$@"
+}
 {{- end -}}
 
 {{/* dockerconfigjson for the agent image pull secret. The agent image is private

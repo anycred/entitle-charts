@@ -143,16 +143,19 @@ agent:
 
 hook:
   # Image for the Jobs that read agent.secretRef and fill the pull/Datadog secrets
-  # (kubectl + jq + bash). Public, so it pulls without credentials.
+  # (Google's public Cloud Build kubectl image: kubectl + bash + python3). Public, so it
+  # pulls without credentials.
   # With agent.platform set, the default repository is pulled through the agent gateway
-  # (agent.<platform>.entitle.io/anycred/entitle-agent-hook) — no egress to ghcr.io needed.
-  # Override `repository` to mirror into a private registry (e.g. myreg.example.com/mirrors/entitle-agent-hook);
-  # a custom repository is never rewritten. imagePullSecret.name, if set, is used for the pull.
+  # (agent.<platform>.entitle.io/cloud-builders/kubectl), like the Datadog image — no egress
+  # to gcr.io needed. Override `repository` to mirror into a private registry
+  # (e.g. myreg.example.com/mirrors/kubectl); a custom repository is never rewritten.
+  # imagePullSecret.name, if set, is used for the pull.
   # IMPORTANT: The repository default must match entitle-agent.defaultHookRepository in templates/_helpers.tpl.
-  # IMPORTANT: The tag default must match the fallback in entitle-agent.hookImageTagValue in templates/_helpers.tpl.
+  # IMPORTANT: The digest default must match the fallback in entitle-agent.hookImageDigestValue in templates/_helpers.tpl.
   image:
-    repository: ghcr.io/anycred/entitle-agent-hook
-    tag: "1.0.0"           # Pinned; CI publishes this tag from images/entitle-agent-hook
+    repository: gcr.io/cloud-builders/kubectl
+    # Pinned by digest: the image's tags are build IDs that get renamed when retired.
+    digest: "sha256:1d98e03496df46ad55cb3e87f973506ccc0452deba8d9eb576e4f6fcb3a770ee"
 
 # =============================================================================
 # Datadog Configuration

@@ -251,8 +251,8 @@
           "type": "object",
           "description": "Image for the agent.secretRef hook Jobs. Override `repository` to point at a private mirror. With agent.platform set, the default repository is pulled through the agent gateway.",
           "properties": {
-            "repository": { "type": "string", "default": "ghcr.io/anycred/entitle-agent-hook", "description": "Full image repository (registry+name)." },
-            "tag": { "type": "string", "default": "1.0.0", "description": "Image tag. Pinned — do not use latest." }
+            "repository": { "type": "string", "default": "gcr.io/cloud-builders/kubectl", "description": "Full image repository (registry+name)." },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "description": "Image digest (sha256:...). Pinned by digest, not tag." }
           }
         }
       }
