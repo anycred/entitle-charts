@@ -88,7 +88,7 @@ Use this instead of direct .Values.datadog.image.tag access.
 
 {{/*
 Safe accessors for hook.image.repository/digest — fall back to the chart defaults when the
-hook block is absent (introduced in v2.13.2; missing on --reuse-values upgrades).
+hook block is absent (introduced in v2.13.3; missing on --reuse-values upgrades).
 */}}
 {{- define "entitle-agent.hookImageRepositoryValue" -}}
 {{- if and (hasKey .Values "hook") (hasKey .Values.hook "image") -}}
@@ -109,7 +109,7 @@ hook block is absent (introduced in v2.13.2; missing on --reuse-values upgrades)
 {{- end -}}
 
 {{/*
-Safe accessor for agent.platform — returns empty string if not set (introduced in v2.13.2).
+Safe accessor for agent.platform — returns empty string if not set (introduced in v2.13.3).
 */}}
 {{- define "entitle-agent.agentPlatformValue" -}}
 {{- if hasKey .Values.agent "platform" -}}
