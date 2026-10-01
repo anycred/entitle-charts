@@ -35,9 +35,15 @@ spec:
     spec:
       serviceAccountName: {{ include "entitle-agent.fullname" . }}-hook
       restartPolicy: Never
+      imagePullSecrets:
+        - name: {{ include "entitle-agent.imagePullSecretName" . }}
       containers:
       - name: patch-image
-        image: bitnami/kubectl:latest
+        image: {{ include "entitle-agent.hookImage" . }}
+        # The image defaults to root; the hooks need no privileges.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
         command: ["/bin/bash"]
         args: ["/scripts/patch-image.sh"]
         volumeMounts:

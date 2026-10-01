@@ -190,6 +190,12 @@
             }
           }
         },
+        "platform": {
+          "type": "string",
+          "default": "",
+          "enum": ["", "eu", "us", "ca", "qa", "dev-one", "dev-two", "dev-three"],
+          "description": "Entitle environment the token belongs to — the X in the agent.X.entitle.io domain your firewall allows (eu, us, ca). Used with agent.secretRef to pull the hook image through that gateway. Leave empty otherwise."
+        },
         "replicas": {
           "type": "integer",
           "minimum": 1
@@ -235,6 +241,19 @@
           "type": "string",
           "default": "default",
           "description": "Controls image tag + restart policy. Valid: default, latest-on-restart, auto-update, or a pinned semver (e.g. 2.7.4)."
+        }
+      }
+    },
+    "hook": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "object",
+          "description": "Image for the agent.secretRef hook Jobs. Override `repository` to point at a private mirror. With agent.platform set, the default repository is pulled through the agent gateway.",
+          "properties": {
+            "repository": { "type": "string", "default": "gcr.io/cloud-builders/kubectl", "description": "Full image repository (registry+name)." },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "description": "Image digest (sha256:...). Pinned by digest, not tag." }
+          }
         }
       }
     },

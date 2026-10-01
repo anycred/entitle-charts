@@ -18,6 +18,7 @@ data:
   patch-image.sh: |
     #!/bin/bash
     set -e
+    {{- include "entitle-agent.runtimeJsonHelpers" . | nindent 4 }}
 
     NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
     DEPLOYMENT_NAME="{{ include "entitle-agent.fullname" . }}"
@@ -28,6 +29,9 @@ data:
     OWN_PULL_SECRET="{{ include "entitle-agent.imagePullSecretNameValue" . }}"
     SECRET_NAME="{{ $secretRefName }}"
     SECRET_KEY="{{ include "entitle-agent.agentSecretKey" . }}"
+    # Non-empty when the Datadog logs sidecar is rendered from the default gcr.io repository —
+    # the only case its image is ours to re-point. A custom repository is a customer mirror.
+    DATADOG_SIDECAR="{{ if and (not .Values.datadog.enabled) .Values.datadog.sidecarLogs (eq (include "entitle-agent.datadogImageRepositoryValue" .) (include "entitle-agent.defaultDatadogRepository" .)) }}true{{ end }}"
 
     echo "Reading token from secret $SECRET_NAME"
 
@@ -35,7 +39,7 @@ data:
     TOKEN_JSON=$(cat "/secret/$SECRET_KEY")
 
     # Unwrap BASE64_CONFIGURATION to get the raw token blob
-    B64_CONFIG=$(echo "$TOKEN_JSON" | jq -r '.BASE64_CONFIGURATION // empty')
+    B64_CONFIG=$(echo "$TOKEN_JSON" | jget BASE64_CONFIGURATION)
 
     if [ -z "$B64_CONFIG" ]; then
       echo "ERROR: Could not extract BASE64_CONFIGURATION from secret"
@@ -46,8 +50,8 @@ data:
     FULL_TOKEN=$(echo "$B64_CONFIG" | base64 -d)
 
     # Extract routing and platform fields
-    ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
-    PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
+    ROUTING=$(echo "$FULL_TOKEN" | jget routing)
+    PLATFORM=$(echo "$FULL_TOKEN" | jget platform)
 
     {{- include "entitle-agent.runtimeRoutingVersion" . | nindent 4 }}
 
@@ -80,18 +84,30 @@ data:
       echo "Current image: $CURRENT_IMAGE"
       echo "New image: $NEW_IMAGE"
 
-      # Patch the deployment - both init container and main container
+      INIT_PATCH="{\"name\":\"${DEPLOYMENT_NAME}-healthcheck\",\"image\":\"$NEW_IMAGE\"}"
+      if [ -n "$DATADOG_SIDECAR" ]; then
+        # The rewrite entitle-agent.datadogImage does on the token path: the gateway maps the
+        # monitoring-agent alias back to gcr.io/datadoghq. v0 never gets here and keeps gcr.io.
+        DD_IMAGE=$(kubectl get deployment "$DEPLOYMENT_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.initContainers[?(@.name=="datadog-agent")].image}')
+        DD_NEW_IMAGE="${PROXY_HOST}/monitoring-agent/agent:${DD_IMAGE##*:}"
+        echo "Datadog sidecar: $DD_IMAGE -> $DD_NEW_IMAGE"
+        # Listed first: the patch reorders initContainers to match, and the sidecar must keep
+        # starting before the healthcheck, as deployment.yaml renders it.
+        INIT_PATCH="{\"name\":\"datadog-agent\",\"image\":\"$DD_NEW_IMAGE\"},${INIT_PATCH}"
+      fi
+
+      # Patch the deployment - init containers (healthcheck, Datadog sidecar) and main container
       kubectl patch deployment "$DEPLOYMENT_NAME" \
         -n "$NAMESPACE" \
         --type strategic \
-        -p "{\"spec\":{\"template\":{\"spec\":{\"initContainers\":[{\"name\":\"${DEPLOYMENT_NAME}-healthcheck\",\"image\":\"$NEW_IMAGE\"}],\"containers\":[{\"name\":\"$DEPLOYMENT_NAME\",\"image\":\"$NEW_IMAGE\"}]}}}}"
+        -p "{\"spec\":{\"template\":{\"spec\":{\"initContainers\":[${INIT_PATCH}],\"containers\":[{\"name\":\"$DEPLOYMENT_NAME\",\"image\":\"$NEW_IMAGE\"}]}}}}"
 
-      echo "Deployment patched successfully (init container + main container). Rolling update will commence."
+      echo "Deployment patched successfully. Rolling update will commence."
 
       # Also patch imagePullSecrets to use the proxy host
       # The extract-pull-secret hook already created the secret, but it's keyed
       # to the upstream registry. We need to re-key it to the proxy host.
-      IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
+      IMAGE_CREDS=$(echo "$FULL_TOKEN" | jget imageCredentials)
       if [ -n "$OWN_PULL_SECRET" ]; then
         # imagePullSecret.name is set, so the chart never created a docker-login Secret and
         # has nothing it may rewrite. Patching a customer-owned Secret would be wrong, and
@@ -104,14 +120,10 @@ data:
         # Decode the imageCredentials to get the auth object
         DECODED_CREDS=$(echo "$IMAGE_CREDS" | base64 -d)
 
-        # Extract the first auth entry (we'll use the same credentials)
-        AUTH_ENTRY=$(echo "$DECODED_CREDS" | jq -r '.auths | to_entries | .[0].value')
-
-        # Create new dockerconfigjson with proxy host as key
-        NEW_CREDS=$(jq -n \
-          --arg host "$PROXY_HOST" \
-          --argjson auth "$AUTH_ENTRY" \
-          '{auths: {($host): $auth}}' | base64 -w0)
+        # Re-key the first auth entry (same credentials) to the proxy host
+        NEW_CREDS=$(echo "$DECODED_CREDS" | python3 -c 'import json,sys
+    auths=json.load(sys.stdin)["auths"]
+    print(json.dumps({"auths":{sys.argv[1]:next(iter(auths.values()))}},separators=(",",":")))' "$PROXY_HOST" | base64 -w0)
 
         kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
           -n "$NAMESPACE" \
@@ -120,7 +132,7 @@ data:
 
         echo "Pull secret re-keyed successfully."
       elif [ "$ROUTING_VER" -ge 2 ]; then
-        CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
+        CLIENT_SECRET=$(echo "$FULL_TOKEN" | jget clientSecret)
         if [ -z "$CLIENT_SECRET" ]; then
           echo "ERROR: routing=$ROUTING but the token has no clientSecret. Cannot build the pull secret."
           exit 1
@@ -129,10 +141,8 @@ data:
         echo "Building docker-login secret from clientSecret for agent gateway: $PROXY_HOST"
 
         # proxy-auth is the magic username the proxy's auth sidecar swaps for the real credential.
-        NEW_CREDS=$(jq -n \
-          --arg host "$PROXY_HOST" \
-          --arg auth "$(printf 'proxy-auth:%s' "$CLIENT_SECRET" | base64 -w0)" \
-          '{auths: {($host): {auth: $auth}}}' | base64 -w0)
+        NEW_CREDS=$(printf '{"auths":{"%s":%s}}' "$PROXY_HOST" \
+          "$(jobj auth="$(printf 'proxy-auth:%s' "$CLIENT_SECRET" | base64 -w0)")" | base64 -w0)
 
         kubectl patch secret "{{ include "entitle-agent.fullname" . }}-docker-login" \
           -n "$NAMESPACE" \
