@@ -21,4 +21,25 @@ Check agent logs:
 
   kubectl logs -l "app.kubernetes.io/name={{ include "entitle-agent.name" . }}" -n {{ .Release.Namespace }} --tail=50
 
+{{- /* The Datadog subchart's DaemonSet image comes from its own values (registry +
+       agents.image); this chart cannot point it at the gateway the way it does the sidecar. */}}
+{{- if .Values.datadog.enabled }}
+{{- $ddRegistry := dig "registry" "" .Values.datadog }}
+{{- $ddRepository := dig "agents" "image" "repository" "" .Values.datadog }}
+{{- $gateway := "" }}
+{{- if ge (include "entitle-agent.routingVersion" . | atoi) 1 }}
+{{- $gateway = include "entitle-agent.entitleHost" . | trim }}
+{{- else if include "entitle-agent.agentPlatformValue" . | trim }}
+{{- $gateway = include "entitle-agent.hostForPlatform" (include "entitle-agent.agentPlatformValue" . | trim) }}
+{{- end }}
+{{- if and $gateway (not $ddRepository) (or (not $ddRegistry) (eq $ddRegistry "gcr.io/datadoghq")) }}
+
+WARNING: datadog.enabled=true runs the Datadog DaemonSet (Datadog subchart), which pulls
+gcr.io/datadoghq/agent directly — not through the agent gateway. If your firewall allows
+only {{ $gateway }}, those pods cannot start. Pull the image through the gateway:
+
+  --set datadog.registry={{ $gateway }}/monitoring-agent
+{{- end }}
+{{- end }}
+
 Documentation: https://docs.beyondtrust.com/entitle/docs/entitle-agent

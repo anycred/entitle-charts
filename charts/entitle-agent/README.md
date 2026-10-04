@@ -119,6 +119,10 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   -n entitle --create-namespace
 ```
 
+The Datadog logs sidecar follows `agent.platform` the same way. If you run the full Datadog
+DaemonSet instead (`datadog.enabled=true`), its image comes from the Datadog subchart: add
+`--set datadog.registry=agent.<platform>.entitle.io/monitoring-agent` (with any install method).
+
 `agent.platform` is one of `eu`, `us`, `ca`, and must match the domain you allowed
 (`agent.us.entitle.io` → `us`) and your token. To mirror the image into your own registry instead,
 set `hook.image.repository` (and `imagePullSecret.name` if the mirror needs credentials).
@@ -591,7 +595,7 @@ The following table lists the configurable parameters of the Entitle-agent chart
 | `agent.token`                    | Base64-encoded agent token blob from Entitle. Leave empty if using `agent.secretRef`.                                                                            | `"MISSING_CUSTOMER_DATA"`         | `true` (or `agent.secretRef.name`)  |
 | `agent.secretRef.name`           | Name of existing Secret with agent configuration. When set, `agent.token` is ignored.                                                                            | `""`                              | `false`                           |
 | `agent.secretRef.key`            | Key within the Secret that holds the agent configuration JSON.                                                                                                   | `"ENTITLE_JSON_CONFIGURATION"`    | `false`                           |
-| `agent.platform`                 | Entitle environment of the token (`eu`, `us`, `ca`). With `agent.secretRef`, pulls the hook image through `agent.<platform>.entitle.io`. Must match the token.  | `""`                              | `true` if `agent.secretRef` with gateway-only egress |
+| `agent.platform`                 | Entitle environment of the token (`eu`, `us`, `ca`). With `agent.secretRef`, pulls the hook and Datadog sidecar images through `agent.<platform>.entitle.io`. Must match the token. | `""`                              | `true` if `agent.secretRef` with gateway-only egress |
 | `hook.image.repository`          | Image for the `agent.secretRef` hook Jobs (needs bash, kubectl, python3). Override to use a private mirror (never rewritten to the gateway).                   | `"gcr.io/cloud-builders/kubectl"` | `false`                           |
 | `hook.image.digest`              | Digest the hook image is pinned to (`sha256:...`)                                                                                                                | pinned in `values.yaml`           | `false`                           |
 | `agent.image.repository`         | Docker image repository                                                                                                                                          | `"ghcr.io/anycred/entitle-agent"` | `false`                           |
