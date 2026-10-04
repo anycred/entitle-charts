@@ -139,15 +139,19 @@ spec:
           if [ "$ROUTING_VER" -ge 2 ]; then
             echo "Populating datadog-routing secret for agent gateway: $PROXY_HOST"
             # host:port for logs, NOT a URL — a scheme makes the logs agent refuse to start.
+            # Same keys as datadog-routing-secret.yaml, including the fail-closed DD_PROXY_* dead end.
             DD_URL_B64=$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)
             DD_LOGS_B64=$(printf '%s:443' "$PROXY_HOST" | base64 -w0)
             DD_HTTP_B64=$(printf 'true' | base64 -w0)
+            DD_DEADEND_B64=$(printf 'http://127.0.0.1:9' | base64 -w0)
+            DD_GATEWAY_B64=$(printf '%s' "$PROXY_HOST" | base64 -w0)
             kubectl patch secret "{{ include "entitle-agent.fullname" . }}-datadog-routing" \
               -n "$NAMESPACE" \
               --type merge \
               -p "{\"data\":$(jobj \
                 DD_DD_URL="$DD_URL_B64" \
                 DD_PROCESS_CONFIG_PROCESS_DD_URL="$DD_URL_B64" \
+                DD_REMOTE_CONFIGURATION_RC_DD_URL="$DD_URL_B64" \
                 DD_LOGS_CONFIG_LOGS_DD_URL="$DD_LOGS_B64" \
                 DD_LOGS_CONFIG_USE_HTTP="$DD_HTTP_B64" \
                 DD_DATABASE_MONITORING_METRICS_LOGS_DD_URL="$DD_LOGS_B64" \
@@ -164,7 +168,17 @@ spec:
                 DD_SYNTHETICS_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
                 DD_DATA_STREAMS_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
                 DD_NETWORK_DEVICES_CONFIG_MANAGEMENT_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
-                DD_AGENT_TELEMETRY_LOGS_DD_URL="$DD_LOGS_B64")}"
+                DD_AGENT_TELEMETRY_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_DATA_OBSERVABILITY_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_EVENT_MANAGEMENT_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_KUBEACTIONS_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_SDS_RESULT_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_SOFTWARE_INVENTORY_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_PROXY_HTTP="$DD_DEADEND_B64" \
+                DD_PROXY_HTTPS="$DD_DEADEND_B64" \
+                DD_PROXY_NO_PROXY="$DD_GATEWAY_B64" \
+                DD_NO_PROXY_NONEXACT_MATCH="$DD_HTTP_B64")}"
           elif [ "$ROUTING_VER" -ge 1 ]; then
             echo "Populating datadog-proxy configmap for agent gateway: $PROXY_HOST"
             kubectl patch configmap "{{ include "entitle-agent.fullname" . }}-datadog-proxy" \

@@ -76,7 +76,12 @@ icon: https://app.entitle.io/favicon.ico
 # The patch-image hook also re-points the Datadog logs sidecar at the gateway for routing v1/v2
 # tokens (v0 stays on gcr.io). It used to stay on gcr.io on secretRef installs, which kept the pod
 # from starting behind a gateway-only firewall.
-version: 2.13.3
+# v2.13.4 (ICH-5609): routing v2 fails closed — any Datadog intake without a gateway URL is sent to a
+# loopback port nothing listens on (DD_PROXY_* with the gateway in no_proxy) instead of
+# datadoghq.com, so the clientSecret cannot leave the pod. Also routes the remaining intakes
+# (config files discovery, data observability, event management, kubeactions, SDS results,
+# software inventory) and remote config on the secretRef path.
+version: 2.13.4
 appVersion: "1.0.0"
 
 dependencies:
