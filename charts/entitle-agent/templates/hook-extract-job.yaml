@@ -28,13 +28,20 @@ spec:
     spec:
       serviceAccountName: {{ include "entitle-agent.fullname" . }}-hook
       restartPolicy: Never
+      imagePullSecrets:
+        - name: {{ include "entitle-agent.imagePullSecretName" . }}
       containers:
       - name: extract
-        image: bitnami/kubectl:latest
+        image: {{ include "entitle-agent.hookImage" . }}
+        # The image defaults to root; the hooks need no privileges.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
         command: ["/bin/bash", "-c"]
         args:
         - |
           set -e
+          {{- include "entitle-agent.runtimeJsonHelpers" . | nindent 10 }}
 
           NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 
@@ -44,9 +51,9 @@ spec:
           TOKEN_JSON=$(cat "/secret/{{ include "entitle-agent.agentSecretKey" . }}")
 
           # Unwrap BASE64_CONFIGURATION to get the raw token blob.
-          # Use jq (present in bitnami/kubectl) so parsing is robust to JSON
+          # Parse with a real JSON parser (jget, python3) so it is robust to JSON
           # whitespace, newlines and key ordering — a plain sed regex is not.
-          B64_CONFIG=$(echo "$TOKEN_JSON" | jq -r '.BASE64_CONFIGURATION // empty')
+          B64_CONFIG=$(echo "$TOKEN_JSON" | jget BASE64_CONFIGURATION)
 
           if [ -z "$B64_CONFIG" ]; then
             echo "ERROR: Could not extract BASE64_CONFIGURATION from secret"
@@ -56,9 +63,9 @@ spec:
           # Decode to get the full token JSON
           FULL_TOKEN=$(echo "$B64_CONFIG" | base64 -d)
 
-          ROUTING=$(echo "$FULL_TOKEN" | jq -r '.routing // empty')
-          PLATFORM=$(echo "$FULL_TOKEN" | jq -r '.platform // empty')
-          CLIENT_SECRET=$(echo "$FULL_TOKEN" | jq -r '.clientSecret // empty')
+          ROUTING=$(echo "$FULL_TOKEN" | jget routing)
+          PLATFORM=$(echo "$FULL_TOKEN" | jget platform)
+          CLIENT_SECRET=$(echo "$FULL_TOKEN" | jget clientSecret)
           {{- include "entitle-agent.runtimeRoutingVersion" . | nindent 10 }}
 
           echo "Routing: $ROUTING"
@@ -80,6 +87,16 @@ spec:
             {{- include "entitle-agent.runtimeProxyHost" . | nindent 12 }}
           fi
 
+          # agent.platform only picks the gateway this Job's image is pulled through; the agent
+          # image and Datadog follow the token's platform. A mismatch that got this far pulled
+          # fine, so nothing breaks — warn instead of failing a working install. (A mismatch
+          # behind a gateway-only firewall never reaches this line: the pull itself fails.)
+          VALUES_PLATFORM="{{ include "entitle-agent.agentPlatformValue" . | trim }}"
+          if [ -n "$VALUES_PLATFORM" ] && [ -n "$PLATFORM" ] && [ "$VALUES_PLATFORM" != "$PLATFORM" ]; then
+            echo "WARNING: agent.platform=$VALUES_PLATFORM does not match the token's platform ($PLATFORM)."
+            echo "Set --set agent.platform=$PLATFORM, or the next install behind a gateway-only firewall will fail to pull this Job's image."
+          fi
+
           if [ "$ROUTING_VER" -ge 2 ] && [ -z "$CLIENT_SECRET" ]; then
             echo "ERROR: routing=$ROUTING but the token has no clientSecret. Cannot configure monitoring."
             exit 1
@@ -89,7 +106,7 @@ spec:
           {{- $hasImageCreds := and .Values.imageCredentials (ne .Values.imageCredentials "MISSING_CUSTOMER_DATA") }}
           {{- $imagePullSecretName := include "entitle-agent.imagePullSecretNameValue" . }}
           {{- if not (or $imagePullSecretName $hasImageCreds) }}
-          IMAGE_CREDS=$(echo "$FULL_TOKEN" | jq -r '.imageCredentials // empty')
+          IMAGE_CREDS=$(echo "$FULL_TOKEN" | jget imageCredentials)
 
           # Extract imageCredentials and patch the docker-login secret.
           # Note: The pull secret is initially keyed to the upstream registry host.
@@ -123,31 +140,53 @@ spec:
             echo "Populating datadog-routing secret for agent gateway: $PROXY_HOST"
             # host:port for logs, NOT a URL — a scheme makes the logs agent refuse to start.
             # Same keys as datadog-routing-secret.yaml, including the fail-closed DD_PROXY_* dead end.
+            DD_URL_B64=$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)
+            DD_LOGS_B64=$(printf '%s:443' "$PROXY_HOST" | base64 -w0)
+            DD_HTTP_B64=$(printf 'true' | base64 -w0)
+            DD_DEADEND_B64=$(printf 'http://127.0.0.1:9' | base64 -w0)
+            DD_GATEWAY_B64=$(printf '%s' "$PROXY_HOST" | base64 -w0)
             kubectl patch secret "{{ include "entitle-agent.fullname" . }}-datadog-routing" \
               -n "$NAMESPACE" \
               --type merge \
-              -p "$(jq -n \
-                --arg url "$(printf 'https://%s' "$PROXY_HOST" | base64 -w0)" \
-                --arg logs "$(printf '%s:443' "$PROXY_HOST" | base64 -w0)" \
-                --arg http "$(printf 'true' | base64 -w0)" \
-                --arg deadend "$(printf 'http://127.0.0.1:9' | base64 -w0)" \
-                --arg gateway "$(printf '%s' "$PROXY_HOST" | base64 -w0)" \
-                '{data:{DD_DD_URL:$url,DD_PROCESS_CONFIG_PROCESS_DD_URL:$url,DD_REMOTE_CONFIGURATION_RC_DD_URL:$url,DD_LOGS_CONFIG_LOGS_DD_URL:$logs,DD_LOGS_CONFIG_USE_HTTP:$http,
-                  DD_DATABASE_MONITORING_METRICS_LOGS_DD_URL:$logs,DD_DATABASE_MONITORING_SAMPLES_LOGS_DD_URL:$logs,DD_DATABASE_MONITORING_ACTIVITY_LOGS_DD_URL:$logs,
-                  DD_NETWORK_DEVICES_METADATA_LOGS_DD_URL:$logs,DD_NETWORK_DEVICES_NETFLOW_FORWARDER_LOGS_DD_URL:$logs,DD_NETWORK_DEVICES_SNMP_TRAPS_FORWARDER_LOGS_DD_URL:$logs,
-                  DD_NETWORK_PATH_FORWARDER_LOGS_DD_URL:$logs,DD_CONTAINER_LIFECYCLE_LOGS_DD_URL:$logs,DD_CONTAINER_IMAGE_LOGS_DD_URL:$logs,DD_SBOM_LOGS_DD_URL:$logs,
-                  DD_GENRESOURCES_LOGS_DD_URL:$logs,DD_SYNTHETICS_FORWARDER_LOGS_DD_URL:$logs,DD_DATA_STREAMS_FORWARDER_LOGS_DD_URL:$logs,
-                  DD_NETWORK_DEVICES_CONFIG_MANAGEMENT_FORWARDER_LOGS_DD_URL:$logs,DD_AGENT_TELEMETRY_LOGS_DD_URL:$logs,
-                  DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL:$logs,DD_DATA_OBSERVABILITY_FORWARDER_LOGS_DD_URL:$logs,DD_EVENT_MANAGEMENT_FORWARDER_LOGS_DD_URL:$logs,
-                  DD_KUBEACTIONS_FORWARDER_LOGS_DD_URL:$logs,DD_SDS_RESULT_FORWARDER_LOGS_DD_URL:$logs,DD_SOFTWARE_INVENTORY_FORWARDER_LOGS_DD_URL:$logs,
-                  DD_PROXY_HTTP:$deadend,DD_PROXY_HTTPS:$deadend,DD_PROXY_NO_PROXY:$gateway,DD_NO_PROXY_NONEXACT_MATCH:$http}}')"
+              -p "{\"data\":$(jobj \
+                DD_DD_URL="$DD_URL_B64" \
+                DD_PROCESS_CONFIG_PROCESS_DD_URL="$DD_URL_B64" \
+                DD_REMOTE_CONFIGURATION_RC_DD_URL="$DD_URL_B64" \
+                DD_LOGS_CONFIG_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_LOGS_CONFIG_USE_HTTP="$DD_HTTP_B64" \
+                DD_DATABASE_MONITORING_METRICS_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_DATABASE_MONITORING_SAMPLES_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_DATABASE_MONITORING_ACTIVITY_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_NETWORK_DEVICES_METADATA_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_NETWORK_DEVICES_NETFLOW_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_NETWORK_DEVICES_SNMP_TRAPS_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_NETWORK_PATH_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_CONTAINER_LIFECYCLE_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_CONTAINER_IMAGE_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_SBOM_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_GENRESOURCES_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_SYNTHETICS_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_DATA_STREAMS_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_NETWORK_DEVICES_CONFIG_MANAGEMENT_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_AGENT_TELEMETRY_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_DATA_OBSERVABILITY_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_EVENT_MANAGEMENT_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_KUBEACTIONS_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_SDS_RESULT_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_SOFTWARE_INVENTORY_FORWARDER_LOGS_DD_URL="$DD_LOGS_B64" \
+                DD_PROXY_HTTP="$DD_DEADEND_B64" \
+                DD_PROXY_HTTPS="$DD_DEADEND_B64" \
+                DD_PROXY_NO_PROXY="$DD_GATEWAY_B64" \
+                DD_NO_PROXY_NONEXACT_MATCH="$DD_HTTP_B64")}"
           elif [ "$ROUTING_VER" -ge 1 ]; then
             echo "Populating datadog-proxy configmap for agent gateway: $PROXY_HOST"
             kubectl patch configmap "{{ include "entitle-agent.fullname" . }}-datadog-proxy" \
               -n "$NAMESPACE" \
               --type merge \
-              -p "$(jq -n --arg url "http://${PROXY_HOST}:8080" \
-                '{data:{DD_PROXY_HTTP:$url,DD_PROXY_HTTPS:$url}}')"
+              -p "{\"data\":$(jobj \
+                DD_PROXY_HTTP="http://${PROXY_HOST}:8080" \
+                DD_PROXY_HTTPS="http://${PROXY_HOST}:8080")}"
           else
             echo "Routing is v0 or absent (found: '$ROUTING'). Datadog talks to datadoghq.com directly."
           fi
@@ -158,7 +197,7 @@ spec:
           # swaps in the real Datadog key. Mirrors entitle-agent.datadogApiKey, which does
           # the same resolution on the render-time path. Last write in the Job: by now the
           # routing that keeps clientSecret off datadoghq.com is already in place.
-          DD_API_KEY=$(echo "$FULL_TOKEN" | jq -r '.datadogApiKey // empty')
+          DD_API_KEY=$(echo "$FULL_TOKEN" | jget datadogApiKey)
 
           if [ "$ROUTING_VER" -ge 2 ]; then
             DD_API_KEY="$CLIENT_SECRET"

@@ -66,14 +66,22 @@ icon: https://app.entitle.io/favicon.ico
 # also turns off the agent's
 # connectivity diagnostics (datadog.inventoriesDiagnosticsEnabled), which probe intakes
 # that cannot be routed, such as LLM obs.
-# v2.13.3: routing v2 fails closed — any Datadog intake without a gateway URL is sent to a
+# v2 tokens need chart >=2.13.0: 2.12.0 routes Datadog through the gateway but still has no
+# clientSecret branch for the pull secret, so a release on a v2 token cannot go back below 2.13.0.
+# v2.13.3 (DOPS-1169): the agent.secretRef hook Jobs no longer pull bitnami/kubectl:latest from
+# Docker Hub. They use Google's public gcr.io/cloud-builders/kubectl pinned by digest (hook.image.*),
+# pulled through agent.<platform>.entitle.io when the new agent.platform value is set (needs the
+# gateway allowlist from gitops DOPS-1171), so a secretRef install works with egress limited to the
+# agent gateway. The hook scripts parse JSON with python3 instead of jq and run as UID 1001.
+# The patch-image hook also re-points the Datadog logs sidecar at the gateway for routing v1/v2
+# tokens (v0 stays on gcr.io). It used to stay on gcr.io on secretRef installs, which kept the pod
+# from starting behind a gateway-only firewall.
+# v2.13.4 (ICH-5609): routing v2 fails closed — any Datadog intake without a gateway URL is sent to a
 # loopback port nothing listens on (DD_PROXY_* with the gateway in no_proxy) instead of
 # datadoghq.com, so the clientSecret cannot leave the pod. Also routes the remaining intakes
 # (config files discovery, data observability, event management, kubeactions, SDS results,
 # software inventory) and remote config on the secretRef path.
-# v2 tokens need chart >=2.13.0: 2.12.0 routes Datadog through the gateway but still has no
-# clientSecret branch for the pull secret, so a release on a v2 token cannot go back below 2.13.0.
-version: 2.13.3
+version: 2.13.4
 appVersion: "1.0.0"
 
 dependencies:
