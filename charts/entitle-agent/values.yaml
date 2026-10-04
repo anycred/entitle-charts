@@ -110,7 +110,7 @@ agent:
   # -- platform: The Entitle environment your token belongs to (e.g. "eu", "us", "ca").
   # Only needed with agent.secretRef when egress is limited to the agent gateway: the chart
   # cannot read the Secret at render time, so this value picks the gateway
-  # (agent.<platform>.entitle.io) the hook Jobs pull their image through.
+  # (agent.<platform>.entitle.io) the hook Jobs and the Datadog logs sidecar pull their images through.
   # One of: eu, us, ca (the X in the agent.X.entitle.io domain you allowed). Must match the
   # token; with a mismatch behind a gateway-only firewall the hook Job cannot pull its image.
   # Leave empty otherwise.
@@ -177,6 +177,9 @@ datadog:
 
   # Default: lightweight logs-only sidecar. Set enabled=true to run the full
   # Datadog Helm subchart (DaemonSet — host metrics, APM, processes) instead.
+  # The DaemonSet image comes from the subchart (registry: gcr.io/datadoghq) and is never
+  # rewritten by this chart. Behind a gateway-only firewall pull it through the gateway:
+  #   --set datadog.registry=agent.<platform>.entitle.io/monitoring-agent
   enabled: false           # false = sidecar (see sidecarLogs); true = full Datadog subchart DaemonSet
   sidecarLogs: true        # Datadog sidecar container for log shipping (used when datadog.enabled=false)
 
@@ -184,6 +187,8 @@ datadog:
   # registry (e.g. myreg.example.com/mirrors/datadog-agent).
   # When routing v1 is active and using the default repository, the image is
   # rewritten to pull through the on-prem registry proxy (the tag is preserved).
+  # With agent.secretRef the token is unreadable at render time; set agent.platform and the
+  # default repository is pulled through agent.<platform>.entitle.io from the start.
   # Custom repositories bypass the proxy to allow direct pulls from private mirrors.
   # IMPORTANT: The repository default must match entitle-agent.defaultDatadogRepository in templates/_helpers.tpl.
   # IMPORTANT: The tag default must match the "latest" fallback in entitle-agent.datadogImageTagValue in templates/_helpers.tpl.

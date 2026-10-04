@@ -81,7 +81,13 @@ icon: https://app.entitle.io/favicon.ico
 # datadoghq.com, so the clientSecret cannot leave the pod. Also routes the remaining intakes
 # (config files discovery, data observability, event management, kubeactions, SDS results,
 # software inventory) and remote config on the secretRef path.
-version: 2.13.4
+# v2.13.5: with agent.secretRef + agent.platform, the Datadog logs sidecar image is rendered on
+# agent.<platform>.entitle.io from the start, like the hook image, instead of gcr.io until the
+# patch-image hook re-points it. That hook is not rendered for a custom agent.image.repository,
+# so the sidecar stayed on gcr.io and the pod never started behind a gateway-only firewall.
+# Installs without agent.platform, and token installs, render exactly as before. NOTES warn when
+# the Datadog DaemonSet (datadog.enabled=true) still pulls from gcr.io while a gateway is in use.
+version: 2.13.5
 appVersion: "1.0.0"
 
 dependencies:

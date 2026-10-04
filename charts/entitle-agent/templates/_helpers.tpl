@@ -613,7 +613,14 @@ fi
                              alias namespace is mapped back to the real upstream
                              by the proxy.
                              If a custom (non-default) repository is explicitly configured,
-                             use it as-is to allow direct pulls from private mirrors. */}}
+                             use it as-is to allow direct pulls from private mirrors.
+     agent.secretRef (no token at render time) with agent.platform set: the same rewrite,
+     onto agent.<platform>.entitle.io, decided at render time like entitle-agent.hookImage.
+     agent.platform already means the nodes pull from that gateway (the hook image comes
+     from it), so this adds no new requirement whatever the token's routing — and the image
+     no longer depends on the patch-image hook, which is not rendered for a custom
+     agent.image.repository. Only where the image is pulled from changes; where Datadog
+     sends data still follows the token. Without agent.platform nothing changes. */}}
 {{- define "entitle-agent.datadogImage" -}}
   {{- $repository := include "entitle-agent.datadogImageRepositoryValue" . -}}
   {{- $tag := include "entitle-agent.datadogImageTagValue" . -}}
@@ -621,10 +628,14 @@ fi
   {{- $proxyUrl := include "entitle-agent.proxyUrl" . -}}
   {{- $defaultDatadogRepo := include "entitle-agent.defaultDatadogRepository" . -}}
   {{- $isDefault := eq $repository $defaultDatadogRepo -}}
+  {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
+  {{- $runtimeSecretRef := and (include "entitle-agent.secretRefNameValue" .) (not (include "entitle-agent.getToken" .)) -}}
+  {{- $platform := include "entitle-agent.agentPlatformValue" . | trim -}}
   {{- if and (ge $ver 1) $proxyUrl $isDefault -}}
     {{- $host := $proxyUrl | trimPrefix "http://" | trimSuffix ":8080" -}}
-    {{- $basename := regexReplaceAll "^.*/" $repository "" -}}
     {{- printf "%s/monitoring-agent/%s:%s" $host $basename $tag -}}
+  {{- else if and $runtimeSecretRef $platform $isDefault -}}
+    {{- printf "%s/monitoring-agent/%s:%s" (include "entitle-agent.hostForPlatform" $platform) $basename $tag -}}
   {{- else -}}
     {{- printf "%s:%s" $repository $tag -}}
   {{- end -}}
