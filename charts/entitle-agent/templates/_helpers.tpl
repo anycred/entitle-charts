@@ -882,10 +882,11 @@ Resolves the effective image tag based on agent_version and image.tag.
 {{- end -}}
 
 {{/*
-Resolves restart policy: "always" or "never".
+Resolves restart policy: "always", "never" or "default".
   - Custom image.tag (non-latest) => never
-  - default + autoUpdate missing/v0 => never
+  - default + autoUpdate missing/empty/null => default (mothership decides by company cutoff date, ICH-5625)
   - default + autoUpdate v1 => always
+  - default + any other autoUpdate (e.g. v0) => never
   - latest-on-restart => never
   - auto-update => always
   - hardcoded version => never
@@ -895,6 +896,10 @@ Resolves restart policy: "always" or "never".
   {{- $agentVersion := .Values.agent.agent_version | default "default" -}}
   {{- $isLatest := eq $imageTag "latest" -}}
   {{- $autoUpdate := include "entitle-agent.extractedAutoUpdate" . -}}
+  {{- /* A null autoUpdate renders as "<no value>" through include - treat it like a missing key. */ -}}
+  {{- if eq $autoUpdate "<no value>" -}}
+    {{- $autoUpdate = "" -}}
+  {{- end -}}
 
   {{- if not $isLatest -}}
     {{- "never" -}}
@@ -903,7 +908,9 @@ Resolves restart policy: "always" or "never".
   {{- else if eq $agentVersion "latest-on-restart" -}}
     {{- "never" -}}
   {{- else if eq $agentVersion "default" -}}
-    {{- if eq $autoUpdate "v1" -}}
+    {{- if not $autoUpdate -}}
+      {{- "default" -}}
+    {{- else if eq $autoUpdate "v1" -}}
       {{- "always" -}}
     {{- else -}}
       {{- "never" -}}
