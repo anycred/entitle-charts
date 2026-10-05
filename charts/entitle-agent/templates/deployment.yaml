@@ -70,8 +70,6 @@ spec:
               secretKeyRef:
                 name: {{ include "entitle-agent.fullname" . }}-datadog-secret
                 key: api-key
-          - name: DD_TAGS
-            value: {{.Values.datadog.datadog.tags | quote}}
           - name: DD_HOSTNAME
             valueFrom:
               fieldRef:
