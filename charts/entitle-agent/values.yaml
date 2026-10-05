@@ -122,7 +122,7 @@ agent:
     tag: latest            # Tag for the agent image; defaults to Chart.appVersion if empty
 
   # -- agent_version: Controls the effective image tag + restart policy.
-  # Valid: "default" (token-controlled), "auto-update", "latest-on-restart", or a pinned semver (e.g. "2.7.4").
+  # Valid: "default" (Entitle decides), "auto-update", "latest-on-restart", or a pinned semver (e.g. "2.7.4").
   # See docs: https://docs.beyondtrust.com/entitle/docs/entitle-agent
   agent_version: "default"
 

@@ -87,9 +87,7 @@ icon: https://app.entitle.io/favicon.ico
 # so the sidecar stayed on gcr.io and the pod never started behind a gateway-only firewall.
 # Installs without agent.platform, and token installs, render exactly as before. NOTES warn when
 # the Datadog DaemonSet (datadog.enabled=true) still pulls from gcr.io while a gateway is in use.
-# v2.13.6 (ICH-5625): HELM_RESTART_POLICY is "default" when the token has no autoUpdate value
-# (missing, empty or null), so mothership can decide by the company's creation date. v1 => always,
-# v0 => never, and agent_version / a pinned image.tag behave as before.
+# v2.13.6: HELM_RESTART_POLICY comes from the Helm values only; agent_version "default" => "default".
 version: 2.13.6
 appVersion: "1.0.0"
 
