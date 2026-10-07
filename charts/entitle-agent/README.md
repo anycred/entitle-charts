@@ -169,17 +169,14 @@ Kubernetes Secret Manager is the default secret manager even if your K8s cluster
 Helm Chart installation:
 
 - `agent.token` is given to you by Entitle (imageCredentials is auto-extracted from the token)
-- Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 - You can replace namespace `entitle` with your own namespace, but it's highly discouraged
 
 ```shell
 export TOKEN=<TOKEN_FROM_ENTITLE>
-export ORG_NAME=<YOUR ORGANIZATION NAME>
 export NAMESPACE=entitle
 
 helm upgrade --install entitle-agent entitle/entitle-agent \
     --set kmsType="kubernetes_secret_manager" \
-    --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set agent.token="${TOKEN}" \
     -n ${NAMESPACE} --create-namespace
 ```
@@ -249,7 +246,6 @@ In the following: If AutoPilot is enabled, replace --zone with --region
 ### C. [GCP Chart Installation](https://helm.sh/docs/helm/helm_upgrade/)
 
 - `agent.token` is given to you by Entitle
-- Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 
 - If you have installed Entitle's Terraform IaC, you need to set up proxy(after [Setting up IAP-tunnel](#setting-up-iap-tunnel)):
 
@@ -266,7 +262,6 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   --set platform.gcp.serviceAccount="<ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME>" \
   --set platform.gcp.projectId="<PROJECT_ID>" \
   --set agent.token="<TOKEN>" \
-  --set datadog.datadog.tags={company:<YOUR_ORG_NAME>} \
   -n "<NAMESPACE>" --create-namespace
 ```
 
@@ -280,7 +275,6 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   --set platform.gcp.serviceAccount="${ENTITLE_AGENT_GKE_SERVICE_ACCOUNT_NAME}" \
   --set platform.gcp.projectId="${PROJECT_ID}" \
   --set agent.token="${TOKEN}" \
-  --set datadog.datadog.tags={company:${ORGANIZATION_NAME}} \
   -n "${NAMESPACE}" --create-namespace
 ```
 
@@ -403,19 +397,16 @@ Eventually, you can install our Helm chart:
 
 - `agent.token` is given to you by Entitle
 - Replace `platform.aws.iamRole` with Entitle's AWS IAM Role you've created
-- Replace `<YOUR_ORG_NAME>` in `datadog.tags` to your company name
 - You can replace namespace `entitle` with your own namespace, but it's highly discouraged
 - If you want to use hashicorp vault, set kmsType to `hashicorp_vault`
 
 ```shell
 export TOKEN=<TOKEN_FROM_ENTITLE>
-export ORG_NAME=<YOUR ORGANIZATION NAME>
 export NAMESPACE=entitle
 
 helm upgrade --install entitle-agent entitle/entitle-agent \
     --set platform.mode="aws" \
     --set kmsType="aws_secret_manager" \
-    --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set platform.aws.iamRole="arn:aws:iam::${ACCOUNT_ID}:role/entitle-agent-role" \
     --set agent.token="${TOKEN}" \
     -n ${NAMESPACE} --create-namespace
@@ -547,7 +538,6 @@ If you don't have a managed identity created and assigned to your pod, perform t
 11. helm install
     ```shell
     export TOKEN=<TOKEN_FROM_ENTITLE>
-    export ORG_NAME=<YOUR ORGANIZATION NAME>
     ```
 
 - If you want to use hashicorp vault, set kmsType to `hashicorp_vault`
@@ -555,7 +545,6 @@ If you don't have a managed identity created and assigned to your pod, perform t
     helm upgrade --install entitle-agent entitle/entitle-agent \
     --set platform.mode="azure" \
     --set kmsType="azure_secret_manager" \
-    --set datadog.datadog.tags={company:${ORG_NAME}} \
     --set datadog.datadog.kubelet.tlsVerify=false \
     --set datadog.datadog.kubelet.host.valueFrom.fieldRef.fieldPath="spec.nodeName" \
     --set datadog.datadog.kubelet.hostCAPath="/etc/kubernetes/certs/kubeletserver.crt" \
@@ -608,7 +597,6 @@ The following table lists the configurable parameters of the Entitle-agent chart
 | `datadog.enabled`                | Enable the Datadog Helm subchart                                                                                                                                 | `true`                            | `false`                           |
 | `datadog.sidecarLogs`            | Enable Datadog sidecar for log shipping (when datadog.enabled=false)                                                                                             | `true`                            | `false`                           |
 | `datadog.datadog.apiKey`         | Datadog API key                                                                                                                                                  | `""`                              | `false`                           |
-| `datadog.datadog.tags`           | Datadog tags (https://docs.datadoghq.com/tagging/)                                                                                                               | `[]`                              | `false`                           |
 | `datadog.providers.gke.autopilot`| Whether to enable GKE autopilot mode                                                                                                                             | `false`                           | `false`                           |
 
 ## Custom CA bundle
