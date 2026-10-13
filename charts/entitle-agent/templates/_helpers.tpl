@@ -836,11 +836,6 @@ healthcheck init container so validators run with identical configuration.
      Auto-update helper functions
      ============================================================ */}}
 
-{{/* Extracts "autoUpdate" field from token */}}
-{{- define "entitle-agent.extractedAutoUpdate" -}}
-  {{- include "entitle-agent.extractTokenField" (dict "token" (include "entitle-agent.getToken" .) "field" "autoUpdate") -}}
-{{- end -}}
-
 {{/*
 Validates agent_version + image.tag compatibility. Fails helm install on incompatible combos.
 */}}
@@ -882,10 +877,9 @@ Resolves the effective image tag based on agent_version and image.tag.
 {{- end -}}
 
 {{/*
-Resolves restart policy: "always" or "never".
+Resolves restart policy from the Helm values: "always", "never" or "default".
   - Custom image.tag (non-latest) => never
-  - default + autoUpdate missing/v0 => never
-  - default + autoUpdate v1 => always
+  - default => default (mothership decides)
   - latest-on-restart => never
   - auto-update => always
   - hardcoded version => never
@@ -894,7 +888,6 @@ Resolves restart policy: "always" or "never".
   {{- $imageTag := .Values.agent.image.tag | default "latest" -}}
   {{- $agentVersion := .Values.agent.agent_version | default "default" -}}
   {{- $isLatest := eq $imageTag "latest" -}}
-  {{- $autoUpdate := include "entitle-agent.extractedAutoUpdate" . -}}
 
   {{- if not $isLatest -}}
     {{- "never" -}}
@@ -903,11 +896,7 @@ Resolves restart policy: "always" or "never".
   {{- else if eq $agentVersion "latest-on-restart" -}}
     {{- "never" -}}
   {{- else if eq $agentVersion "default" -}}
-    {{- if eq $autoUpdate "v1" -}}
-      {{- "always" -}}
-    {{- else -}}
-      {{- "never" -}}
-    {{- end -}}
+    {{- "default" -}}
   {{- else -}}
     {{- "never" -}}
   {{- end -}}
