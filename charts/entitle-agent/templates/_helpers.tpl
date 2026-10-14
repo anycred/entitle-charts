@@ -918,7 +918,7 @@ true
 {{- end -}}
 {{- end -}}
 
-{{/* Sends $HELM_EVENT to the agent gateway, authenticated by the token's clientSecret.
+{{/* Sends $HELM_EVENT, plus sent_at (the cluster clock, UTC), to the agent gateway, authenticated by the token's clientSecret.
      Skips tokens below routing v2, and always exits 0 so it never fails the helm command.
      Prints only the outcome, never the secret. */}}
 {{- define "entitle-agent.helmEventScript" -}}
@@ -946,9 +946,10 @@ fi
 {{ include "entitle-agent.runtimeProxyHost" . }}
 export PROXY_HOST CLIENT_SECRET
 python3 - <<'PY'
-import base64, os, ssl, urllib.request
+import base64, datetime, json, os, ssl, urllib.request
+event = dict(json.loads(os.environ['HELM_EVENT']), sent_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'))
 credential = base64.b64encode(('proxy-auth:' + os.environ['CLIENT_SECRET']).encode()).decode()
-request = urllib.request.Request('https://' + os.environ['PROXY_HOST'] + '/agents/helm-event', data=os.environ['HELM_EVENT'].encode(),
+request = urllib.request.Request('https://' + os.environ['PROXY_HOST'] + '/agents/helm-event', data=json.dumps(event).encode(),
                                  headers={'Content-Type': 'application/json', 'Authorization': 'Basic ' + credential})
 context = ssl.create_default_context(cafile=os.environ.get('ENTITLE_CUSTOM_CA_CERT_PATH') or None)
 try:
