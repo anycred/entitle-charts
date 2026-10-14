@@ -1,0 +1,111 @@
+{{/*
+Helm event hook Jobs: each helm install, upgrade, rollback and uninstall sends one event
+to Mothership, so support can see what the customer changed on the agent.
+
+Routing v2 only. The Job sends the token's clientSecret to the agent gateway, which
+authenticates it and tells Mothership which agent it is (X-Entitle-Client-Secret-Id).
+Token installs with an older token render nothing. agent.secretRef installs always render,
+because the routing is only known once the Job reads the Secret; there the script skips
+v0/v1 tokens itself, like the other secretRef hooks.
+
+Three Jobs, because only install and upgrade can be told apart at render time: Helm runs
+rollback and uninstall hooks from the manifest it stored earlier, so their action is fixed.
+Weight 5 runs them after the patch-image hook (weight 1), so on agent.secretRef installs the
+pull secret already points at the gateway. No ServiceAccount: they never call the API.
+*/}}
+{{- $hasToken := and .Values.agent.token (ne .Values.agent.token "MISSING_CUSTOMER_DATA") -}}
+{{- $secretRefName := include "entitle-agent.secretRefNameValue" . -}}
+{{- $ver := include "entitle-agent.routingVersion" . | atoi -}}
+{{- $customCa := include "entitle-agent.customCaEnabled" . -}}
+{{- $hooks := list
+      (dict "suffix" "" "hook" "post-install,post-upgrade" "action" (ternary "install" "upgrade" .Release.IsInstall))
+      (dict "suffix" "-rollback" "hook" "post-rollback" "action" "rollback")
+      (dict "suffix" "-uninstall" "hook" "pre-delete" "action" "uninstall") -}}
+{{- if and (include "entitle-agent.helmEventsEnabled" .) (or (and $hasToken (ge $ver 2)) (and $secretRefName (not $hasToken))) }}
+{{- range $hooks }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "entitle-agent.fullname" $ }}-helm-event{{ .suffix }}
+  labels:
+    {{- include "entitle-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: helm-event
+  annotations:
+    helm.sh/hook: {{ .hook }}
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 60
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "entitle-agent.name" $ }}
+        app.kubernetes.io/component: helm-event
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: {{ include "entitle-agent.imagePullSecretName" $ }}
+      containers:
+      - name: report
+        image: {{ include "entitle-agent.hookImage" $ }}
+        imagePullPolicy: IfNotPresent
+        # The image defaults to root; the Job needs no privileges.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          {{- include "entitle-agent.helmEventScript" $ | nindent 10 }}
+        env:
+        - name: HELM_EVENT
+          value: {{ dict
+              "action" .action
+              "release" $.Release.Name
+              "namespace" $.Release.Namespace
+              "revision" $.Release.Revision
+              "chart_version" $.Chart.Version
+              "helm_version" $.Capabilities.HelmVersion.Version
+              "kubernetes_version" $.Capabilities.KubeVersion.Version
+              "agent_version" ($.Values.agent.agent_version | default "default")
+              "image_tag" (include "entitle-agent.resolvedImageTag" $)
+            | toJson | quote }}
+        {{- if $customCa }}
+        - name: ENTITLE_CUSTOM_CA_CERT_PATH
+          value: {{ include "entitle-agent.customCaCertPath" $ | quote }}
+        {{- end }}
+        volumeMounts:
+        - name: token-secret
+          mountPath: /secret
+          readOnly: true
+        {{- if $customCa }}
+        - name: custom-ca
+          mountPath: {{ include "entitle-agent.customCaMountPath" $ }}
+          readOnly: true
+        {{- end }}
+      volumes:
+      - name: token-secret
+        secret:
+          secretName: {{ include "entitle-agent.agentSecretName" $ }}
+      {{- if $customCa }}
+      - name: custom-ca
+        {{- if include "entitle-agent.customCaSecretNameValue" $ }}
+        secret:
+          secretName: {{ include "entitle-agent.customCaSecretNameValue" $ }}
+        {{- else }}
+        configMap:
+          name: {{ include "entitle-agent.customCaConfigMapNameValue" $ }}
+        {{- end }}
+      {{- end }}
+{{- end }}
+{{- end }}

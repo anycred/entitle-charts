@@ -145,6 +145,14 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   -n entitle --create-namespace
 ```
 
+## Helm Events
+
+With a routing v2 token, each `helm install`, `upgrade`, `rollback` and `uninstall` runs a short
+Job (`entitle-agent-helm-event`, `-rollback`, `-uninstall`) that reports the action to Entitle
+through the agent gateway, so support can see what changed on the agent. It sends the release and
+the chart, agent, Helm and Kubernetes versions, never the token or credentials. The Job always
+succeeds, so it never fails your helm command. Turn it off with `--set helmEvents.enabled=false`.
+
 ## Pre-Install
 
 Allow outbound traffic from the agent's pods to `agent.<platform>.entitle.io` on **:8080 and

@@ -160,6 +160,17 @@ hook:
     digest: "sha256:1d98e03496df46ad55cb3e87f973506ccc0452deba8d9eb576e4f6fcb3a770ee"
 
 # =============================================================================
+# Helm Events
+# =============================================================================
+
+helmEvents:
+  # Report each helm install, upgrade, rollback and uninstall to Entitle, so support can see
+  # what changed on the agent. A short hook Job on the hook image (hook.image) sends the action,
+  # the release, and the chart, agent, Helm and Kubernetes versions to the agent gateway.
+  # Routing v2 tokens only; the Job never fails the helm command.
+  enabled: true
+
+# =============================================================================
 # Datadog Configuration
 # =============================================================================
 # The chart includes the Datadog Helm subchart as an optional dependency.

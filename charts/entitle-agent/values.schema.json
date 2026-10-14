@@ -257,6 +257,13 @@
         }
       }
     },
+    "helmEvents": {
+      "type": "object",
+      "description": "Report each helm install, upgrade, rollback and uninstall to Entitle through the agent gateway. Routing v2 tokens only.",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true, "description": "Render the helm event hook Jobs." }
+      }
+    },
     "datadog": {
       "type": "object",
       "properties": {

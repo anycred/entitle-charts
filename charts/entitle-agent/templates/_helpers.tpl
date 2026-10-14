@@ -670,11 +670,13 @@ fi
                                Datadog image: <hostForPlatform>/cloud-builders/kubectl@<digest>,
                                served by the gateway's gcr.io allowlist (gitops DOPS-1171). The
                                image is public, so the pull needs no credentials.
-     A custom repository is used as-is to allow direct pulls from private mirrors. */}}
+     A custom repository is used as-is to allow direct pulls from private mirrors.
+     On token installs (the helm event Jobs) the token's platform is used when agent.platform
+     is empty; secretRef installs have no token here, so nothing changes for them. */}}
 {{- define "entitle-agent.hookImage" -}}
   {{- $repository := include "entitle-agent.hookImageRepositoryValue" . -}}
   {{- $digest := include "entitle-agent.hookImageDigestValue" . -}}
-  {{- $platform := include "entitle-agent.agentPlatformValue" . | trim -}}
+  {{- $platform := include "entitle-agent.agentPlatformValue" . | trim | default (include "entitle-agent.extractedPlatform" . | trim) -}}
   {{- if and $platform (eq $repository (include "entitle-agent.defaultHookRepository" .)) -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
     {{- printf "%s/%s@%s" (include "entitle-agent.hostForPlatform" $platform) $path $digest -}}
@@ -900,4 +902,59 @@ Resolves restart policy from the Helm values: "always", "never" or "default".
   {{- else -}}
     {{- "never" -}}
   {{- end -}}
+{{- end -}}
+
+{{/* ============================================================
+     Helm event hook Jobs (hook-helm-event-job.yaml)
+     ============================================================ */}}
+
+{{/* "true" unless helmEvents.enabled is false. A release upgraded with --reuse-values from a
+     chart without helmEvents keeps the default (on). */}}
+{{- define "entitle-agent.helmEventsEnabled" -}}
+{{- if and (hasKey .Values "helmEvents") (hasKey .Values.helmEvents "enabled") -}}
+{{- if .Values.helmEvents.enabled -}}true{{- end -}}
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/* Sends $HELM_EVENT to the agent gateway, authenticated by the token's clientSecret.
+     Skips tokens below routing v2, and always exits 0 so it never fails the helm command.
+     Prints only the outcome, never the secret. */}}
+{{- define "entitle-agent.helmEventScript" -}}
+set +e
+{{ include "entitle-agent.runtimeJsonHelpers" . }}
+FULL_TOKEN=$(jget BASE64_CONFIGURATION 2>/dev/null < "/secret/{{ include "entitle-agent.agentSecretKey" . }}" | base64 -d 2>/dev/null)
+ROUTING=$(printf '%s' "$FULL_TOKEN" | jget routing 2>/dev/null)
+PLATFORM=$(printf '%s' "$FULL_TOKEN" | jget platform 2>/dev/null)
+CLIENT_SECRET=$(printf '%s' "$FULL_TOKEN" | jget clientSecret 2>/dev/null)
+{{ include "entitle-agent.runtimeRoutingVersion" . }}
+SKIP=""
+if [ -z "$FULL_TOKEN" ]; then
+  SKIP="could not read the token from Secret {{ include "entitle-agent.agentSecretName" . }}, key {{ include "entitle-agent.agentSecretKey" . }}"
+elif [ "$ROUTING_VER" -lt 2 ]; then
+  SKIP="the token's routing is '${ROUTING:-none}', and helm events need routing v2 or later"
+elif [ -z "$PLATFORM" ]; then
+  SKIP="the routing ${ROUTING} token has no platform, so the agent gateway is unknown"
+elif [ -z "$CLIENT_SECRET" ]; then
+  SKIP="the routing ${ROUTING} token has no clientSecret to authenticate to the agent gateway"
+fi
+if [ -n "$SKIP" ]; then
+  echo "Helm event not sent: $SKIP."
+  exit 0
+fi
+{{ include "entitle-agent.runtimeProxyHost" . }}
+export PROXY_HOST CLIENT_SECRET
+python3 - <<'PY'
+import base64, os, ssl, urllib.request
+credential = base64.b64encode(('proxy-auth:' + os.environ['CLIENT_SECRET']).encode()).decode()
+request = urllib.request.Request('https://' + os.environ['PROXY_HOST'] + '/agents/helm-event', data=os.environ['HELM_EVENT'].encode(),
+                                 headers={'Content-Type': 'application/json', 'Authorization': 'Basic ' + credential})
+context = ssl.create_default_context(cafile=os.environ.get('ENTITLE_CUSTOM_CA_CERT_PATH') or None)
+try:
+    print('Helm event sent: HTTP %d' % urllib.request.urlopen(request, timeout=10, context=context).status)
+except Exception as e:
+    print('Helm event not sent: %s %s' % (type(e).__name__, getattr(e, 'code', '')))
+PY
+exit 0
 {{- end -}}
