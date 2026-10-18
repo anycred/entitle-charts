@@ -918,9 +918,8 @@ true
 {{- end -}}
 {{- end -}}
 
-{{/* Sends $HELM_EVENT, plus sent_at (the cluster clock, UTC), to the agent gateway, authenticated by the token's clientSecret.
-     Skips tokens below routing v2, and always exits 0 so it never fails the helm command.
-     Prints only the outcome, never the secret. */}}
+{{/* POSTs $HELM_EVENT + sent_at (UTC) to the agent gateway with the token's clientSecret.
+     Routing v2+ only; always exits 0; never prints the secret. */}}
 {{- define "entitle-agent.helmEventScript" -}}
 set +e
 {{ include "entitle-agent.runtimeJsonHelpers" . }}
