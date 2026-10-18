@@ -37,7 +37,9 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 0
-  activeDeadlineSeconds: 60
+  # The deadline counts the image pull: a cold pull of the hook image through the gateway
+  # took 78s on a fresh node and failed the upgrade at 60. Matches Helm's default --timeout.
+  activeDeadlineSeconds: 300
   template:
     metadata:
       labels:
