@@ -48,6 +48,19 @@ spec:
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
+      # Same scheduling as the agent: a Job left Pending on tainted or pinned nodes fails the helm action.
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       imagePullSecrets:
         - name: {{ include "entitle-agent.imagePullSecretName" $ }}
       containers:
