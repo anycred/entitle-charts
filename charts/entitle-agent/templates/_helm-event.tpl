@@ -21,7 +21,7 @@ FULL_TOKEN=$(jget BASE64_CONFIGURATION 2>/dev/null < "/secret/{{ include "entitl
 ROUTING=$(printf '%s' "$FULL_TOKEN" | jget routing 2>/dev/null)
 PLATFORM=$(printf '%s' "$FULL_TOKEN" | jget platform 2>/dev/null)
 CLIENT_SECRET=$(printf '%s' "$FULL_TOKEN" | jget clientSecret 2>/dev/null)
-{{ include "entitle-agent.runtimeRoutingVersion" . }}
+{{ include "entitle-agent.runtimeRoutingVersion" . }} {{- /* sets ROUTING_VER from ROUTING */}}
 SKIP=""
 if [ -z "$FULL_TOKEN" ]; then
   SKIP="could not read the token from Secret {{ include "entitle-agent.agentSecretName" . }}, key {{ include "entitle-agent.agentSecretKey" . }}"
