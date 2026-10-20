@@ -39,16 +39,24 @@ fi
 {{ include "entitle-agent.runtimeProxyHost" . }}
 export PROXY_HOST CLIENT_SECRET
 python3 - <<'PY'
-import base64, datetime, json, os, ssl, urllib.request
+import base64, datetime, json, os, ssl, time, urllib.error, urllib.request
 event = dict(json.loads(os.environ['HELM_EVENT']), sent_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'))
 credential = base64.b64encode(('proxy-auth:' + os.environ['CLIENT_SECRET']).encode()).decode()
 request = urllib.request.Request('https://' + os.environ['PROXY_HOST'] + '/agents/helm-event', data=json.dumps(event).encode(),
                                  headers={'Content-Type': 'application/json', 'Authorization': 'Basic ' + credential})
 context = ssl.create_default_context(cafile=os.environ.get('ENTITLE_CUSTOM_CA_CERT_PATH') or None)
-try:
-    print('Helm event sent: HTTP %d' % urllib.request.urlopen(request, timeout=10, context=context).status)
-except Exception as e:
-    print('Helm event not sent: %s %s' % (type(e).__name__, getattr(e, 'code', '')))
+# 3 attempts, 2s then 4s apart: at most ~40s, well inside activeDeadlineSeconds. Only network
+# errors, 429 and 5xx are retried; any other HTTP error will not change on a retry.
+for attempt in range(1, 4):
+    try:
+        print('Helm event sent: HTTP %d' % urllib.request.urlopen(request, timeout=10, context=context).status)
+        break
+    except Exception as e:
+        code = getattr(e, 'code', '')
+        print('Helm event not sent (attempt %d/3): %s %s' % (attempt, type(e).__name__, code))
+        if attempt == 3 or (isinstance(e, urllib.error.HTTPError) and code != 429 and code < 500):
+            break
+        time.sleep(2 * attempt)
 PY
 exit 0
 {{- end -}}
