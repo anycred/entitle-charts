@@ -670,11 +670,13 @@ fi
                                Datadog image: <hostForPlatform>/cloud-builders/kubectl@<digest>,
                                served by the gateway's gcr.io allowlist (gitops DOPS-1171). The
                                image is public, so the pull needs no credentials.
-     A custom repository is used as-is to allow direct pulls from private mirrors. */}}
+     A custom repository is used as-is to allow direct pulls from private mirrors.
+     On token installs (the helm event Jobs) the token's platform is used when agent.platform
+     is empty; secretRef installs have no token here, so nothing changes for them. */}}
 {{- define "entitle-agent.hookImage" -}}
   {{- $repository := include "entitle-agent.hookImageRepositoryValue" . -}}
   {{- $digest := include "entitle-agent.hookImageDigestValue" . -}}
-  {{- $platform := include "entitle-agent.agentPlatformValue" . | trim -}}
+  {{- $platform := include "entitle-agent.agentPlatformValue" . | trim | default (include "entitle-agent.extractedPlatform" . | trim) -}}
   {{- if and $platform (eq $repository (include "entitle-agent.defaultHookRepository" .)) -}}
     {{- $path := regexReplaceAll "^[^/]+/" $repository "" -}}
     {{- printf "%s/%s@%s" (include "entitle-agent.hostForPlatform" $platform) $path $digest -}}
