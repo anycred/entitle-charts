@@ -1,0 +1,79 @@
+# =============================================================================
+# Connectivity Test (QA)
+# =============================================================================
+# Deploys the entitle-agent chart on a minikube cluster (Calico CNI) and verifies
+# the agent is 1/1 Ready and stable, both with open egress and with egress locked
+# to the QA proxy only. Requires the ENTITLE_AGENT_TOKEN secret (skipped on forks).
+# =============================================================================
+name: Connectivity Test (QA)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"   # nightly 03:00 UTC
+  pull_request:
+    paths:
+      - 'charts/entitle-agent/**'
+      - '.github/workflows/connectivity-test.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  connectivity-test:
+    runs-on: ubuntu-latest
+    # Only run on the upstream repo (forks have no access to the token secret).
+    if: github.repository == 'anycred/entitle-charts'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        with:
+          version: v3.12.1
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.10"
+
+      - name: Install dig (dnsutils)
+        run: sudo apt-get update && sudo apt-get install -y dnsutils
+
+      - name: Build chart dependencies
+        run: |
+          helm repo add datadog https://helm.datadoghq.com
+          helm repo update
+          helm dependency build charts/entitle-agent
+
+      # minikube is installed via a run step rather than the medyagh/setup-minikube
+      # action because this org enforces an allowed-actions policy that doesn't
+      # include that action. kubectl is pre-installed on the GitHub runner.
+      - name: Install and start minikube with Calico CNI
+        run: |
+          curl -fsSL https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 -o minikube
+          sudo install minikube /usr/local/bin/minikube && rm minikube
+          minikube start --driver=docker --cni=calico --cpus=2 --memory=4096 --wait=all
+
+      - name: Wait for Calico to be ready
+        run: |
+          kubectl wait --for=condition=Ready pods -l k8s-app=calico-node -A --timeout=240s
+
+      - name: Check for agent token secret
+        id: check-secret
+        env:
+          ENTITLE_AGENT_TOKEN: ${{ secrets.ENTITLE_AGENT_TOKEN }}
+        run: |
+          if [ -n "$ENTITLE_AGENT_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ENTITLE_AGENT_TOKEN secret not set — skipping connectivity test"
+          fi
+
+      - name: Run connectivity test
+        if: steps.check-secret.outputs.available == 'true'
+        env:
+          ENTITLE_AGENT_TOKEN: ${{ secrets.ENTITLE_AGENT_TOKEN }}
+        run: bash charts/entitle-agent/ci/connectivity-test.sh
