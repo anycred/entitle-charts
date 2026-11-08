@@ -67,7 +67,7 @@ helm upgrade --install entitle-agent entitle/entitle-agent \
   -n entitle --create-namespace
 ```
 
-> `kmsType` defaults to `kubernetes_secret_manager` — only set it if you need a different KMS (e.g., `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`).
+> `kmsType` defaults to `kubernetes_secret_manager` — only set it if you need a different KMS (e.g., `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`, `password_safe`).
 
 ### Scenario 2 — Pre-existing Secret (GitOps / External Secrets)
 
@@ -575,7 +575,12 @@ The following table lists the configurable parameters of the Entitle-agent chart
 | `customCa.secretName`            | Name of a pre-existing Secret holding a combined CA bundle to trust (see [Custom CA bundle](#custom-ca-bundle)). Mutually exclusive with `customCa.configMapName`. | `""`                              | `false`                           |
 | `customCa.configMapName`         | Name of a pre-existing ConfigMap holding a combined CA bundle to trust. Mutually exclusive with `customCa.secretName`.                                           | `""`                              | `false`                           |
 | `customCa.key`                   | Key within the Secret/ConfigMap that holds the combined PEM bundle.                                                                                              | `"ca-bundle.pem"`                 | `false`                           |
-| `kmsType`                        | KMS for agent to save secrets. Values: `kubernetes_secret_manager`, `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`        | `"kubernetes_secret_manager"`     | `true`                            |
+| `kmsType`                        | KMS for agent to save secrets. Values: `kubernetes_secret_manager`, `aws_secret_manager`, `gcp_secret_manager`, `azure_secret_manager`, `hashicorp_vault`, `password_safe` | `"kubernetes_secret_manager"`     | `true`                            |
+| `externalKmsParams.passwordSafe.url` | Password Safe API URL, e.g. `https://<host>/BeyondTrust/api/public/v3`                                                                                    | `""`                              | `true` if `kmsType="password_safe"` |
+| `externalKmsParams.passwordSafe.clientId` | Client ID of the Password Safe application user (API Access Policy, `Secrets Safe` feature on Full Control)                                          | `""`                              | `true` if `kmsType="password_safe"` |
+| `externalKmsParams.passwordSafe.clientSecret` | Client secret of the Password Safe application user                                                                                              | `""`                              | `true` if `kmsType="password_safe"` |
+| `externalKmsParams.passwordSafe.safeName` | Secrets Safe safe that holds the agent's secrets (created if missing)                                                                                | `""` (agent uses `Entitle`)      | `false`                           |
+| `externalKmsParams.passwordSafe.verify` | Verify the Password Safe SSL certificate. For a private CA keep `true` and set `customCa`                                                              | `true`                            | `false`                           |
 | `platform.mode`                  | Cloud platform. Values: `native`, `aws`, `gcp`, `azure`                                                                                                         | `"native"`                        | `true`                            |
 | `platform.aws.iamRole`           | IAM role ARN for agent's IRSA service account annotation                                                                                                         | `""`                              | `true` if `platform.mode="aws"`   |
 | `platform.gcp.serviceAccount`    | GKE service account for agent's Workload Identity annotation                                                                                                     | `""`                              | `true` if `platform.mode="gcp"`   |

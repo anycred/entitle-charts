@@ -15,7 +15,8 @@
         "aws_secret_manager",
         "gcp_secret_manager",
         "azure_secret_manager",
-        "hashicorp_vault"
+        "hashicorp_vault",
+        "password_safe"
       ]
     },
     "imageCredentials": {
@@ -65,6 +66,32 @@
             "connectionString": {
               "type": ["string", "null"],
               "default": null
+            }
+          }
+        },
+        "passwordSafe": {
+          "type": ["object", "null"],
+          "default": null,
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "clientId": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "clientSecret": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "safeName": {
+              "type": ["string", "null"],
+              "default": null
+            },
+            "verify": {
+              "type": ["boolean", "null"],
+              "default": true
             }
           }
         }

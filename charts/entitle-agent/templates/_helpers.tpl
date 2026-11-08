@@ -804,6 +804,22 @@ healthcheck init container so validators run with identical configuration.
       name: {{ include "entitle-agent.fullname" . }}-hashicorp-vault-secret
       key: HASHICORP_VAULT_CONNECTION_STRING
 {{- end }}
+{{- if eq .Values.kmsType "password_safe" }}
+{{- $passwordSafe := dig "passwordSafe" dict (.Values.externalKmsParams | default dict) }}
+{{- range $envName := list "PASSWORD_SAFE_KMS_URL" "PASSWORD_SAFE_KMS_CLIENT_ID" "PASSWORD_SAFE_KMS_CLIENT_SECRET" }}
+- name: {{ $envName }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "entitle-agent.fullname" $ }}-password-safe-secret
+      key: {{ $envName }}
+{{- end }}
+{{- with $passwordSafe.safeName }}
+- name: PASSWORD_SAFE_KMS_SAFE_NAME
+  value: {{ . | quote }}
+{{- end }}
+- name: PASSWORD_SAFE_KMS_VERIFY
+  value: {{ dig "verify" true $passwordSafe | quote }}
+{{- end }}
 - name: ENTITLE_KMS_TYPE
   value: {{ .Values.kmsType }}
 {{- if .Values.agent.kafka.bootstrapServers }}

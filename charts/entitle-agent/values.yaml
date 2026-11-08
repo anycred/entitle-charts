@@ -59,13 +59,19 @@ tolerations: []           # https://kubernetes.io/docs/concepts/scheduling-evict
 
 # -- kmsType: Key Management Service used to store internal Entitle secrets.
 # Valid values: kubernetes_secret_manager, aws_secret_manager, gcp_secret_manager,
-#               azure_secret_manager, hashicorp_vault
+#               azure_secret_manager, hashicorp_vault, password_safe
 kmsType: "kubernetes_secret_manager"
 
 # -- externalKmsParams: Additional parameters for external KMS providers.
 externalKmsParams:
   hashicorp:
     connectionString: ""  # Vault connection string, e.g. "https://<token>@1.2.3.4:8200"
+  passwordSafe:
+    url: ""               # Password Safe API URL, e.g. "https://<host>/BeyondTrust/api/public/v3"
+    clientId: ""          # Client ID of the application user (API Access Policy)
+    clientSecret: ""      # Client secret of the application user
+    safeName: ""          # Secrets Safe safe that holds the agent's secrets; the agent defaults to "Entitle"
+    verify: true          # Verify the server's SSL certificate; trust a private CA with customCa
 
 # -- global: Metadata labels applied to all resources.
 global:
