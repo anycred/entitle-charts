@@ -153,6 +153,16 @@ through the agent gateway, so support can see what changed on the agent. It send
 the chart, agent, Helm and Kubernetes versions, never the token or credentials. The Job always
 succeeds, so it never fails your helm command. Turn it off with `--set helmEvents.enabled=false`.
 
+## OpenShift
+
+The agent runs under the default `restricted-v2` SCC; no extra SCC grant is needed. On other
+clusters the hook Jobs run as UID 1001 (the hook image defaults to root). On OpenShift that UID is
+left out and OpenShift assigns one from the namespace range, which `restricted-v2` requires. The
+chart detects OpenShift by the `security.openshift.io/v1` API. Helm queries the cluster for it on
+`install`/`upgrade`; when rendering offline with `helm template`, pass
+`--api-versions security.openshift.io/v1`, or set the hook `securityContext` yourself with
+`--set hook.securityContext.runAsNonRoot=true` (a non-empty `hook.securityContext` replaces the default).
+
 ## Pre-Install
 
 Allow outbound traffic from the agent's pods to `agent.<platform>.entitle.io` on **:8080 and
