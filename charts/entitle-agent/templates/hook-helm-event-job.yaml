@@ -68,8 +68,6 @@ spec:
         image: {{ include "entitle-agent.hookImage" $ }}
         imagePullPolicy: IfNotPresent
         # The image defaults to root; the Job needs no privileges.
-        # OpenShift assigns each namespace its own UID range and its restricted-v2 SCC rejects a fixed
-        # runAsUser outside it, so the UID is left to OpenShift there (ICH-5753).
         securityContext:
           runAsNonRoot: true
           {{- if not ($.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
