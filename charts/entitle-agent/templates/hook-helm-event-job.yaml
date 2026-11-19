@@ -69,10 +69,7 @@ spec:
         imagePullPolicy: IfNotPresent
         # The image defaults to root; the Job needs no privileges.
         securityContext:
-          runAsNonRoot: true
-          {{- if not ($.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
-          runAsUser: 1001
-          {{- end }}
+          {{- include "entitle-agent.hookSecurityContext" $ | nindent 10 }}
         resources:
           requests:
             cpu: 10m

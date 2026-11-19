@@ -42,10 +42,7 @@ spec:
         image: {{ include "entitle-agent.hookImage" . }}
         # The image defaults to root; the hooks need no privileges.
         securityContext:
-          runAsNonRoot: true
-          {{- if not ($.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
-          runAsUser: 1001
-          {{- end }}
+          {{- include "entitle-agent.hookSecurityContext" $ | nindent 10 }}
         command: ["/bin/bash"]
         args: ["/scripts/patch-image.sh"]
         volumeMounts:

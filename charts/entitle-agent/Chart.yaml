@@ -92,6 +92,7 @@ icon: https://app.entitle.io/favicon.ico
 # v2.14.0: Helm event hook Jobs report install/upgrade/rollback/uninstall to Entitle (routing v2 only; helmEvents.enabled).
 # v2.14.1: On OpenShift (security.openshift.io/v1 served) the hook Jobs no longer set runAsUser: 1001, which
 # the restricted-v2 SCC rejected (outside the namespace UID range), so helm install failed post-install (ICH-5753).
+# hook.securityContext (default {}) replaces the hook Jobs' securityContext when set, e.g. for offline renders.
 version: 2.14.1
 appVersion: "1.0.0"
 

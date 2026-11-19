@@ -254,7 +254,8 @@
             "repository": { "type": "string", "default": "gcr.io/cloud-builders/kubectl", "description": "Full image repository (registry+name)." },
             "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "description": "Image digest (sha256:...). Pinned by digest, not tag." }
           }
-        }
+        },
+        "securityContext": { "type": "object", "default": {}, "description": "securityContext for the hook Jobs' containers. Empty: runAsNonRoot with UID 1001, and on OpenShift the UID is left to the SCC. Set to replace it." }
       }
     },
     "helmEvents": {
