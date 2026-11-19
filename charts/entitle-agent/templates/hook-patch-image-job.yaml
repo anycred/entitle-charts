@@ -41,9 +41,13 @@ spec:
       - name: patch-image
         image: {{ include "entitle-agent.hookImage" . }}
         # The image defaults to root; the hooks need no privileges.
+        # OpenShift assigns each namespace its own UID range and its restricted-v2 SCC rejects a fixed
+        # runAsUser outside it, so the UID is left to OpenShift there (ICH-5753).
         securityContext:
           runAsNonRoot: true
+          {{- if not ($.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
           runAsUser: 1001
+          {{- end }}
         command: ["/bin/bash"]
         args: ["/scripts/patch-image.sh"]
         volumeMounts:
