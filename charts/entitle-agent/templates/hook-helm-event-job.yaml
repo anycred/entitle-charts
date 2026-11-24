@@ -69,8 +69,7 @@ spec:
         imagePullPolicy: IfNotPresent
         # The image defaults to root; the Job needs no privileges.
         securityContext:
-          runAsNonRoot: true
-          runAsUser: 1001
+          {{- include "entitle-agent.hookSecurityContext" $ | nindent 10 }}
         resources:
           requests:
             cpu: 10m

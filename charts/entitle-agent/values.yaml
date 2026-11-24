@@ -159,6 +159,11 @@ hook:
     # Pinned by digest: the image's tags are build IDs that get renamed when retired.
     digest: "sha256:1d98e03496df46ad55cb3e87f973506ccc0452deba8d9eb576e4f6fcb3a770ee"
 
+  # securityContext for the hook Jobs. Empty: runAsNonRoot with UID 1001, and on OpenShift
+  # (security.openshift.io/v1 served) the UID is left to the SCC. Set it to replace that, e.g. for
+  # an offline `helm template` render for OpenShift: --set hook.securityContext.runAsNonRoot=true
+  securityContext: {}
+
 # =============================================================================
 # Helm Events
 # =============================================================================

@@ -685,6 +685,19 @@ fi
   {{- end -}}
 {{- end -}}
 
+{{/* securityContext for the hook containers: hook.securityContext when set, else runAsNonRoot with
+     UID 1001, and on OpenShift the UID is left to the SCC (restricted-v2 rejects a fixed one). */}}
+{{- define "entitle-agent.hookSecurityContext" -}}
+{{- with (.Values.hook | default dict).securityContext -}}
+{{- toYaml . -}}
+{{- else -}}
+runAsNonRoot: true
+{{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+runAsUser: 1001
+{{- end }}
+{{- end -}}
+{{- end -}}
+
 {{/* JSON helpers for the hook scripts, which run on the hook image: it has python3 but no jq.
        jget <path>        stdin JSON -> value at dotted <path>; "" if absent/null/false (jq -r '.p // empty').
                           Strings print raw, objects/arrays as compact JSON.
